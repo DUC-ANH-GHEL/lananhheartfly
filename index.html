@@ -408,7 +408,7 @@
           <div class="inside-left">
             <div>
               <div class="card-base-title">Chúc mừng sinh nhật Lan Anh</div>
-              <div class="card-base-sub">Hôm nay là một ngày thật đặc biệt 27/01/2026 ✨</div>
+              <div class="card-base-sub"> 27/01/2026 ✨</div>
             </div>
           </div>
           <div class="inside-right">
@@ -445,6 +445,11 @@
   const bgMusic = document.getElementById('bgMusic');
   if (!overlay) return;
 
+  // Timing: make the overlay fully disappear ~5s after user opens the card.
+  // Total = HIDE_DELAY_MS + OVERLAY_FADE_MS
+  const OVERLAY_FADE_MS = 550;
+  const HIDE_DELAY_MS = 5000 - OVERLAY_FADE_MS;
+
   let opened = false;
   let musicStarted = false;
   let experienceStarted = false;
@@ -480,12 +485,12 @@
     // Fade overlay out after the opening animation finishes.
     window.setTimeout(() => {
       overlay.classList.add('hide');
-    }, 2850);
+    }, HIDE_DELAY_MS);
 
     // Start the experience only after the overlay is fully hidden (fallback timer).
     window.setTimeout(() => {
       startExperience();
-    }, 3500);
+    }, HIDE_DELAY_MS + OVERLAY_FADE_MS + 200);
   }
 
   // Prefer transition end to ensure overlay is fully gone before starting effects.
