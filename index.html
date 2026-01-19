@@ -447,6 +447,13 @@
 
   let opened = false;
   let musicStarted = false;
+  let experienceStarted = false;
+
+  function startExperience() {
+    if (experienceStarted) return;
+    experienceStarted = true;
+    document.body.classList.add('experience-on');
+  }
 
   function startMusicOnClick() {
     if (musicStarted) return;
@@ -470,14 +477,24 @@
     overlay.classList.add('open');
     startMusicOnClick();
 
-    // Reveal the existing content immediately (card keeps animating on top).
-    document.body.classList.add('experience-on');
-
     // Fade overlay out after the opening animation finishes.
     window.setTimeout(() => {
       overlay.classList.add('hide');
     }, 2850);
+
+    // Start the experience only after the overlay is fully hidden (fallback timer).
+    window.setTimeout(() => {
+      startExperience();
+    }, 3500);
   }
+
+  // Prefer transition end to ensure overlay is fully gone before starting effects.
+  overlay.addEventListener('transitionend', (e) => {
+    if (e.target !== overlay) return;
+    if (e.propertyName !== 'opacity') return;
+    if (!overlay.classList.contains('hide')) return;
+    startExperience();
+  });
 
   overlay.addEventListener('click', openCard, { passive: true });
   overlay.addEventListener('keydown', (e) => {
@@ -783,7 +800,15 @@ imgElement.src = CONFIG.imageUrl;
 // Fade in ảnh sau khi particles tụ lại
 let imageOpacity = 0;
 let imageReady = false;
-setTimeout(() => { imageReady = true; }, 5000); // 5 giây - chờ tim hình thành đẹp
+
+// Start this timer only when the experience actually starts.
+(function scheduleImageReady() {
+  if (document.body.classList.contains('experience-on')) {
+    setTimeout(() => { imageReady = true; }, 5000); // 5 giây - chờ tim hình thành đẹp
+  } else {
+    setTimeout(scheduleImageReady, 200);
+  }
+})();
 
 /* ================= ENERGY RING ================= */
 const ringPositions = new Float32Array(CONFIG.ringParticles * 3);
@@ -1203,6 +1228,9 @@ const SLEIGH_SPEED = 0.3;
 /* ================= ANIMATE ================= */
 function animate() {
   requestAnimationFrame(animate);
+
+  // Do not advance effects until the card overlay has fully disappeared.
+  if (!document.body.classList.contains('experience-on')) return;
   
   const time = Date.now() * 0.001;
   
