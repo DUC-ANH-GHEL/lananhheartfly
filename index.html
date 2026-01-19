@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Giáng sinh vui vẻ</title>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    overflow: hidden;
+    background: #000;
+    font-family: Arial, sans-serif;
+  }
+
+  #text {
+    position: absolute;
+    bottom: 8%;
+    width: 100%;
+    text-align: center;
+    font-size: clamp(18px, 4vw, 28px);
+    letter-spacing: 3px;
+    color: #ff7aa2;
+    text-shadow:
+      0 0 10px rgba(255,120,160,0.9),
+      0 0 30px rgba(255,80,140,0.7),
+      0 0 50px rgba(255,50,120,0.5);
+    pointer-events: none;
+    z-index: 10;
+  }
+  
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+
+<body>
+<div id="text">🎄 Vấn đề khó giải quyết nhất là tả hết vẻ đẹp của Lan Anh❤️ 🎄</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.min.js"></script>
+<script>
+/* ================= CONFIG ================= */
+const CONFIG = {
+  heartParticles: 12000,      // Particles cho tim đặc
+  heartScale: 0.9,
+  particleSize: 0.7,
+  ringParticles: 3000,
+  imageUrl: "laanh.jpg",
+  imageSize: 13               // Kích thước ảnh trong tim
+};
+
+/* ================= SCENE SETUP ================= */
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x000000);
+document.body.appendChild(renderer.domElement);
+
+/* ================= HEART GROUP ================= */
+const heartGroup = new THREE.Group();
+scene.add(heartGroup);
+
+/* ================= CAMERA SETUP ================= */
+function updateCamera() {
+  const aspect = window.innerWidth / window.innerHeight;
+  camera.position.z = aspect < 1 ? 75 / aspect * 0.7 : 60;
+  heartGroup.position.y = aspect < 1 ? 8 : 10;
+}
+updateCamera();
+
+/* ================= TEXTURES ================= */
+const discTexture = new THREE.TextureLoader().load(
+  "https://threejs.org/examples/textures/sprites/disc.png"
+);
+
+// Tạo glow texture cho particles đẹp hơn
+const glowCanvas = document.createElement('canvas');
+glowCanvas.width = 64;
+glowCanvas.height = 64;
+const glowCtx = glowCanvas.getContext('2d');
+const gradient = glowCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+gradient.addColorStop(0, 'rgba(255,255,255,1)');
+gradient.addColorStop(0.2, 'rgba(255,150,180,0.8)');
+gradient.addColorStop(0.5, 'rgba(255,100,150,0.3)');
+gradient.addColorStop(1, 'rgba(255,50,100,0)');
+glowCtx.fillStyle = gradient;
+glowCtx.fillRect(0, 0, 64, 64);
+const glowTexture = new THREE.CanvasTexture(glowCanvas);
+
+/* ================= HEART MATH ================= */
+function heartShape(t, scale = 1) {
+  const x = 16 * Math.pow(Math.sin(t), 3);
+  const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+  return { x: x * scale, y: y * scale };
+}
+
+// Kiểm tra điểm nằm trong trái tim (dùng parametric heart)
+function isInsideHeart(px, py, scale = 1) {
+  // Scale về hệ tọa độ chuẩn của heart equation
+  const x = px / (16 * scale);
+  const y = (py + 2 * scale) / (16 * scale); // offset Y vì tâm tim không ở 0
+  
+  // Heart equation: (x² + y² - 1)³ - x²y³ ≤ 0
+  const x2 = x * x;
+  const y2 = y * y;
+  const eq = Math.pow(x2 + y2 - 1, 3) - x2 * y2 * y;
+  return eq <= 0;
+}
+
+// Tạo filled heart points sử dụng parametric approach
+function generateFilledHeartPoints(count, scale) {
+  const points = [];
+  
+  while (points.length < count) {
+    // Random góc và khoảng cách từ tâm
+    const t = Math.random() * Math.PI * 2;
+    const r = Math.random(); // 0-1, sẽ scale theo heart shape
+    
+    // Heart parametric
+    const heartX = 16 * Math.pow(Math.sin(t), 3);
+    const heartY = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+    
+    // Fill bên trong bằng cách nhân với r
+    const x = heartX * r * scale;
+    const y = heartY * r * scale;
+    const z = (Math.random() - 0.5) * 4 * scale;
+    
+    points.push(new THREE.Vector3(x, y, z));
+  }
+  return points;
+}
+
+/* ================= HEART PARTICLES ================= */
+const HEART_POINTS = generateFilledHeartPoints(CONFIG.heartParticles, CONFIG.heartScale);
+const heartPositions = new Float32Array(CONFIG.heartParticles * 3);
+const heartColors = new Float32Array(CONFIG.heartParticles * 3);
+const heartTargets = [];
+const heartSpeeds = [];
+const heartArrived = []; // Track xem particle đã đến đích chưa
+const heartDelays = []; // Delay trước khi reset
+
+for (let i = 0; i < CONFIG.heartParticles; i++) {
+  const target = HEART_POINTS[i];
+  heartTargets.push(target);
+  
+  // Spawn từ dưới lên
+  heartPositions[i * 3] = (Math.random() - 0.5) * 80;
+  heartPositions[i * 3 + 1] = -50 - Math.random() * 30;
+  heartPositions[i * 3 + 2] = (Math.random() - 0.5) * 80;
+  
+  heartSpeeds.push(0.003 + Math.random() * 0.007); // Chậm hơn, lãng mạn hơn
+  heartArrived.push(false);
+  heartDelays.push(0);
+  
+  // Gradient color: đỏ hồng đẹp
+  const normalizedY = (target.y + 15) / 30;
+  heartColors[i * 3] = 0.85 + Math.random() * 0.15;
+  heartColors[i * 3 + 1] = 0.15 + normalizedY * 0.25 + Math.random() * 0.1;
+  heartColors[i * 3 + 2] = 0.35 + normalizedY * 0.2 + Math.random() * 0.15;
+}
+
+const heartGeo = new THREE.BufferGeometry();
+heartGeo.setAttribute('position', new THREE.BufferAttribute(heartPositions, 3));
+heartGeo.setAttribute('color', new THREE.BufferAttribute(heartColors, 3));
+
+const heartMat = new THREE.PointsMaterial({
+  map: glowTexture,
+  size: CONFIG.particleSize,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.9,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+
+const heartMesh = new THREE.Points(heartGeo, heartMat);
+heartGroup.add(heartMesh);
+
+/* ================= STREAM PARTICLES (bay vào bồi đắp tim) ================= */
+const STREAM_COUNT = 800;
+const streamPositions = new Float32Array(STREAM_COUNT * 3);
+const streamColors = new Float32Array(STREAM_COUNT * 3);
+const streamTargets = [];
+const streamSpeeds = [];
+const streamPhases = []; // 0: bay lên, 1: bay vào tim
+
+function resetStreamParticle(i) {
+  const idx = i * 3;
+  // Spawn từ vòng ring phía dưới
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 15 + Math.random() * 8;
+  
+  streamPositions[idx] = Math.cos(angle) * radius;
+  streamPositions[idx + 1] = -25 + Math.random() * 5;
+  streamPositions[idx + 2] = Math.sin(angle) * radius;
+  
+  // Target là 1 điểm trên viền trái tim
+  const t = Math.random() * Math.PI * 2;
+  const heartX = 16 * Math.pow(Math.sin(t), 3) * CONFIG.heartScale;
+  const heartY = (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * CONFIG.heartScale;
+  
+  streamTargets[i] = new THREE.Vector3(heartX, heartY, (Math.random() - 0.5) * 3);
+  streamSpeeds[i] = 0.015 + Math.random() * 0.025;
+  streamPhases[i] = 0;
+}
+
+for (let i = 0; i < STREAM_COUNT; i++) {
+  resetStreamParticle(i);
+  // Stagger initial positions
+  streamPositions[i * 3 + 1] = -25 + Math.random() * 50;
+  
+  // Màu hồng sáng
+  streamColors[i * 3] = 1;
+  streamColors[i * 3 + 1] = 0.4 + Math.random() * 0.3;
+  streamColors[i * 3 + 2] = 0.6 + Math.random() * 0.2;
+}
+
+const streamGeo = new THREE.BufferGeometry();
+streamGeo.setAttribute('position', new THREE.BufferAttribute(streamPositions, 3));
+streamGeo.setAttribute('color', new THREE.BufferAttribute(streamColors, 3));
+
+const streamMat = new THREE.PointsMaterial({
+  map: glowTexture,
+  size: 0.6,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.85,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+
+const streamMesh = new THREE.Points(streamGeo, streamMat);
+heartGroup.add(streamMesh);
+
+/* ================= IMAGE WITH HEART MASK ================= */
+// Tạo canvas để mask ảnh theo hình trái tim MỀM MẠI
+const imgElement = new Image();
+imgElement.crossOrigin = "anonymous";
+imgElement.onload = function() {
+  const canvas = document.createElement('canvas');
+  const size = 512;
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  
+  const scale = size / 38;
+  const offsetX = size / 2;
+  const offsetY = size / 2 + 3 * scale;
+  
+  // Hàm vẽ đường trái tim
+  function drawHeartPath(ctx, scale, offsetX, offsetY) {
+    ctx.beginPath();
+    for (let t = 0; t <= Math.PI * 2; t += 0.01) {
+      const x = 16 * Math.pow(Math.sin(t), 3);
+      const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+      const px = offsetX + x * scale;
+      const py = offsetY + y * scale;
+      if (t === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+  
+  // Tạo mask mềm mại bằng cách vẽ nhiều lớp với độ mờ giảm dần
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = size;
+  tempCanvas.height = size;
+  const tempCtx = tempCanvas.getContext('2d');
+  
+  // Vẽ ảnh trước
+  const heartWidth = 32 * scale;
+  const heartHeight = 30 * scale;
+  const imgW = heartWidth * 0.95;
+  const imgH = heartHeight * 1.1;
+  const imgX = (size - imgW) / 2;
+  const imgY = offsetY - heartHeight * 0.35;
+  tempCtx.drawImage(imgElement, imgX, imgY, imgW, imgH);
+  
+  // Tạo mask gradient mềm
+  const maskCanvas = document.createElement('canvas');
+  maskCanvas.width = size;
+  maskCanvas.height = size;
+  const maskCtx = maskCanvas.getContext('2d');
+  
+  // Vẽ trái tim với blur effect bằng shadow
+  maskCtx.shadowColor = 'white';
+  maskCtx.shadowBlur = 15; // Độ mềm viền
+  maskCtx.shadowOffsetX = 0;
+  maskCtx.shadowOffsetY = 0;
+  maskCtx.fillStyle = 'white';
+  drawHeartPath(maskCtx, scale * 0.92, offsetX, offsetY); // Nhỏ hơn một chút
+  maskCtx.fill();
+  
+  // Vẽ lại không shadow để có core rõ
+  maskCtx.shadowBlur = 0;
+  drawHeartPath(maskCtx, scale * 0.88, offsetX, offsetY);
+  maskCtx.fill();
+  
+  // Apply mask lên ảnh
+  ctx.drawImage(tempCanvas, 0, 0);
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.drawImage(maskCanvas, 0, 0);
+  
+  // Tạo texture từ canvas
+  const maskedTexture = new THREE.CanvasTexture(canvas);
+  maskedTexture.needsUpdate = true;
+  
+  const imageMat = new THREE.SpriteMaterial({
+    map: maskedTexture,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.NormalBlending,
+    depthTest: false
+  });
+  
+  const imageSprite = new THREE.Sprite(imageMat);
+  imageSprite.scale.set(CONFIG.imageSize, CONFIG.imageSize, 1);
+  imageSprite.position.set(0, -0.5, 1.5);
+  imageSprite.renderOrder = 999;
+  heartGroup.add(imageSprite);
+  
+  // Lưu reference để animate
+  window.imageSprite = imageSprite;
+  window.imageMat = imageMat;
+};
+imgElement.src = CONFIG.imageUrl;
+
+// Fade in ảnh sau khi particles tụ lại
+let imageOpacity = 0;
+let imageReady = false;
+setTimeout(() => { imageReady = true; }, 5000); // 5 giây - chờ tim hình thành đẹp
+
+/* ================= ENERGY RING ================= */
+const ringPositions = new Float32Array(CONFIG.ringParticles * 3);
+const ringColors = new Float32Array(CONFIG.ringParticles * 3);
+
+for (let i = 0; i < CONFIG.ringParticles; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 18 + Math.random() * 4;
+  
+  ringPositions[i * 3] = Math.cos(angle) * radius;
+  ringPositions[i * 3 + 1] = -22 + (Math.random() - 0.5) * 2;
+  ringPositions[i * 3 + 2] = Math.sin(angle) * radius;
+  
+  // Cyan gradient
+  ringColors[i * 3] = 0.1 + Math.random() * 0.2;
+  ringColors[i * 3 + 1] = 0.8 + Math.random() * 0.2;
+  ringColors[i * 3 + 2] = 1;
+}
+
+const ringGeo = new THREE.BufferGeometry();
+ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPositions, 3));
+ringGeo.setAttribute('color', new THREE.BufferAttribute(ringColors, 3));
+
+const ringMat = new THREE.PointsMaterial({
+  map: glowTexture,
+  size: 0.8,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.9,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+
+const ringMesh = new THREE.Points(ringGeo, ringMat);
+heartGroup.add(ringMesh);
+
+/* ================= FLOATING PARTICLES ================= */
+const FLOAT_COUNT = 2000;
+const floatPositions = new Float32Array(FLOAT_COUNT * 3);
+const floatSpeeds = [];
+
+for (let i = 0; i < FLOAT_COUNT; i++) {
+  floatPositions[i * 3] = (Math.random() - 0.5) * 60;
+  floatPositions[i * 3 + 1] = -35 + Math.random() * 70;
+  floatPositions[i * 3 + 2] = (Math.random() - 0.5) * 60;
+  floatSpeeds.push(0.03 + Math.random() * 0.08);
+}
+
+const floatGeo = new THREE.BufferGeometry();
+floatGeo.setAttribute('position', new THREE.BufferAttribute(floatPositions, 3));
+
+const floatMat = new THREE.PointsMaterial({
+  map: discTexture,
+  color: 0xff5080,
+  size: 0.5,
+  transparent: true,
+  opacity: 0.5,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+
+const floatMesh = new THREE.Points(floatGeo, floatMat);
+heartGroup.add(floatMesh);
+
+/* ================= 🎄 CHRISTMAS EFFECTS 🎄 ================= */
+
+// ❄️ SNOW PARTICLES
+const SNOW_COUNT = 500;
+const snowPositions = new Float32Array(SNOW_COUNT * 3);
+const snowSpeeds = [];
+const snowDrifts = [];
+
+for (let i = 0; i < SNOW_COUNT; i++) {
+  snowPositions[i * 3] = (Math.random() - 0.5) * 100;
+  snowPositions[i * 3 + 1] = Math.random() * 80 - 20;
+  snowPositions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+  snowSpeeds.push(0.02 + Math.random() * 0.05);
+  snowDrifts.push(Math.random() * Math.PI * 2); // Phase for swaying
+}
+
+const snowGeo = new THREE.BufferGeometry();
+snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+
+// Tạo snowflake texture
+const snowCanvas = document.createElement('canvas');
+snowCanvas.width = 32;
+snowCanvas.height = 32;
+const snowCtx = snowCanvas.getContext('2d');
+const snowGrad = snowCtx.createRadialGradient(16, 16, 0, 16, 16, 16);
+snowGrad.addColorStop(0, 'rgba(255,255,255,1)');
+snowGrad.addColorStop(0.3, 'rgba(255,255,255,0.8)');
+snowGrad.addColorStop(1, 'rgba(255,255,255,0)');
+snowCtx.fillStyle = snowGrad;
+snowCtx.fillRect(0, 0, 32, 32);
+const snowTexture = new THREE.CanvasTexture(snowCanvas);
+
+const snowMat = new THREE.PointsMaterial({
+  map: snowTexture,
+  size: 0.8,
+  transparent: true,
+  opacity: 0.9,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+
+const snowMesh = new THREE.Points(snowGeo, snowMat);
+scene.add(snowMesh); // Add to scene, not heartGroup
+
+// 🎅 SANTA HAT (bằng particles)
+const HAT_PARTICLES = 600;
+const hatPositions = new Float32Array(HAT_PARTICLES * 3);
+const hatColors = new Float32Array(HAT_PARTICLES * 3);
+
+// Vị trí mũ trên đỉnh tim
+const hatBaseY = 13 * CONFIG.heartScale; // Đỉnh tim
+const hatOffsetX = 5; // Nghiêng sang phải một chút
+
+for (let i = 0; i < HAT_PARTICLES; i++) {
+  let x, y, z;
+  const part = Math.random();
+  
+  if (part < 0.6) {
+    // Phần thân mũ đỏ (hình tam giác/cone)
+    const height = Math.random();
+    const radius = (1 - height) * 6; // Nhỏ dần lên đỉnh
+    const angle = Math.random() * Math.PI * 2;
+    
+    x = hatOffsetX + Math.cos(angle) * radius + (Math.random() - 0.5) * 2;
+    y = hatBaseY + height * 12;
+    z = Math.sin(angle) * radius * 0.5 + (Math.random() - 0.5) * 2;
+    
+    // Màu đỏ
+    hatColors[i * 3] = 0.9 + Math.random() * 0.1;
+    hatColors[i * 3 + 1] = 0.1 + Math.random() * 0.1;
+    hatColors[i * 3 + 2] = 0.1 + Math.random() * 0.1;
+  } 
+  else if (part < 0.85) {
+    // Viền trắng dưới mũ
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 6 + Math.random() * 1.5;
+    
+    x = hatOffsetX + Math.cos(angle) * radius;
+    y = hatBaseY + Math.random() * 2;
+    z = Math.sin(angle) * radius * 0.5;
+    
+    // Màu trắng
+    hatColors[i * 3] = 1;
+    hatColors[i * 3 + 1] = 1;
+    hatColors[i * 3 + 2] = 1;
+  }
+  else {
+    // Quả cầu trắng trên đỉnh
+    const angle = Math.random() * Math.PI * 2;
+    const phi = Math.random() * Math.PI;
+    const radius = 1.5 + Math.random() * 0.5;
+    
+    x = hatOffsetX + 2 + Math.sin(phi) * Math.cos(angle) * radius;
+    y = hatBaseY + 13 + Math.sin(phi) * Math.sin(angle) * radius;
+    z = Math.cos(phi) * radius;
+    
+    // Màu trắng sáng
+    hatColors[i * 3] = 1;
+    hatColors[i * 3 + 1] = 1;
+    hatColors[i * 3 + 2] = 1;
+  }
+  
+  hatPositions[i * 3] = x;
+  hatPositions[i * 3 + 1] = y;
+  hatPositions[i * 3 + 2] = z;
+}
+
+const hatGeo = new THREE.BufferGeometry();
+hatGeo.setAttribute('position', new THREE.BufferAttribute(hatPositions, 3));
+hatGeo.setAttribute('color', new THREE.BufferAttribute(hatColors, 3));
+
+const hatMat = new THREE.PointsMaterial({
+  map: glowTexture,
+  size: 0.7,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.95,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+
+const hatMesh = new THREE.Points(hatGeo, hatMat);
+heartGroup.add(hatMesh);
+
+/* ================= 🎅🦌 SANTA SLEIGH FLYING ================= */
+const sleighGroup = new THREE.Group();
+scene.add(sleighGroup);
+
+// Tạo Santa + Sleigh + Reindeers bằng particles - TĂNG SỐ LƯỢNG
+const SLEIGH_PARTICLES = 1200;
+const sleighPositions = new Float32Array(SLEIGH_PARTICLES * 3);
+const sleighColors = new Float32Array(SLEIGH_PARTICLES * 3);
+
+for (let i = 0; i < SLEIGH_PARTICLES; i++) {
+  let x, y, z;
+  let r, g, b;
+  const part = Math.random();
+  
+  if (part < 0.15) {
+    // 🦌 Tuần lộc 1 - THÂN (phía trước bên trái)
+    const bx = -10;
+    const bz = -0.5;
+    x = bx + (Math.random() - 0.5) * 3;
+    y = (Math.random() - 0.5) * 2;
+    z = bz + (Math.random() - 0.5) * 1.5;
+    // Màu nâu sáng
+    r = 0.7 + Math.random() * 0.2;
+    g = 0.4 + Math.random() * 0.15;
+    b = 0.2 + Math.random() * 0.1;
+  }
+  else if (part < 0.2) {
+    // 🦌 Tuần lộc 1 - CHÂN
+    const bx = -10;
+    const bz = -0.5;
+    const legX = (Math.random() > 0.5 ? 0.8 : -0.8);
+    x = bx + legX + (Math.random() - 0.5) * 0.5;
+    y = -1.5 + Math.random() * 1.5;
+    z = bz + (Math.random() - 0.5) * 0.3;
+    r = 0.6; g = 0.35; b = 0.15;
+  }
+  else if (part < 0.22) {
+    // 🦌 Tuần lộc 1 - SỪNG
+    const bx = -11;
+    const bz = -0.5;
+    const antler = Math.random();
+    x = bx + (Math.random() - 0.5) * 0.8;
+    y = 1.5 + antler * 1.5;
+    z = bz + (antler > 0.5 ? 0.5 : -0.5) + (Math.random() - 0.5) * 0.3;
+    r = 0.5; g = 0.3; b = 0.15;
+  }
+  else if (part < 0.37) {
+    // 🦌 Tuần lộc 2 - THÂN (phía trước bên phải)
+    const bx = -10;
+    const bz = 2.5;
+    x = bx + (Math.random() - 0.5) * 3;
+    y = (Math.random() - 0.5) * 2;
+    z = bz + (Math.random() - 0.5) * 1.5;
+    r = 0.7 + Math.random() * 0.2;
+    g = 0.4 + Math.random() * 0.15;
+    b = 0.2 + Math.random() * 0.1;
+  }
+  else if (part < 0.42) {
+    // 🦌 Tuần lộc 2 - CHÂN
+    const bx = -10;
+    const bz = 2.5;
+    const legX = (Math.random() > 0.5 ? 0.8 : -0.8);
+    x = bx + legX + (Math.random() - 0.5) * 0.5;
+    y = -1.5 + Math.random() * 1.5;
+    z = bz + (Math.random() - 0.5) * 0.3;
+    r = 0.6; g = 0.35; b = 0.15;
+  }
+  else if (part < 0.44) {
+    // 🦌 Tuần lộc 2 - SỪNG  
+    const bx = -11;
+    const bz = 2.5;
+    const antler = Math.random();
+    x = bx + (Math.random() - 0.5) * 0.8;
+    y = 1.5 + antler * 1.5;
+    z = bz + (antler > 0.5 ? 0.5 : -0.5) + (Math.random() - 0.5) * 0.3;
+    r = 0.5; g = 0.3; b = 0.15;
+  }
+  else if (part < 0.47) {
+    // 👃 Mũi đỏ Rudolph (tuần lộc 1)
+    x = -11.8 + (Math.random() - 0.5) * 0.4;
+    y = 0.3 + (Math.random() - 0.5) * 0.4;
+    z = -0.5 + (Math.random() - 0.5) * 0.3;
+    // Màu đỏ phát sáng
+    r = 1;
+    g = 0.1 + Math.random() * 0.2;
+    b = 0.1;
+  }
+  else if (part < 0.65) {
+    // 🛷 Xe trượt tuyết - THÂN XE
+    x = (Math.random() - 0.5) * 6;
+    y = -1.2 + (Math.random() - 0.5) * 1.5;
+    z = 1 + (Math.random() - 0.5) * 3;
+    // Màu đỏ đậm
+    r = 0.85 + Math.random() * 0.15;
+    g = 0.08;
+    b = 0.08;
+  }
+  else if (part < 0.7) {
+    // 🛷 Xe - THANH TRƯỢT DƯỚI
+    const side = Math.random() > 0.5 ? -0.8 : 2.8;
+    x = -2 + Math.random() * 6;
+    y = -2.5 + (Math.random() - 0.5) * 0.4;
+    z = side + (Math.random() - 0.5) * 0.3;
+    // Màu vàng kim
+    r = 0.9; g = 0.75; b = 0.3;
+  }
+  else if (part < 0.88) {
+    // 🎅 Ông già Noel - THÂN
+    x = 1.5 + (Math.random() - 0.5) * 2.5;
+    y = 0.5 + Math.random() * 2.5;
+    z = 1 + (Math.random() - 0.5) * 2;
+    
+    const santaPart = Math.random();
+    if (santaPart < 0.5) {
+      // Áo đỏ
+      r = 1; g = 0.1; b = 0.1;
+    } else if (santaPart < 0.7) {
+      // Viền trắng áo
+      r = 1; g = 1; b = 1;
+    } else {
+      // Thắt lưng đen
+      r = 0.15; g = 0.15; b = 0.15;
+    }
+  }
+  else if (part < 0.92) {
+    // 🎅 Ông già Noel - ĐẦU + MŨ
+    x = 1.5 + (Math.random() - 0.5) * 1.2;
+    y = 3 + Math.random() * 1.8;
+    z = 1 + (Math.random() - 0.5) * 1;
+    
+    const headPart = Math.random();
+    if (headPart < 0.3) {
+      // Mặt
+      r = 1; g = 0.85; b = 0.75;
+    } else if (headPart < 0.5) {
+      // Râu trắng
+      r = 1; g = 1; b = 1;
+    } else {
+      // Mũ đỏ
+      r = 1; g = 0.1; b = 0.1;
+    }
+  }
+  else if (part < 0.95) {
+    // 🎁 Túi quà phía sau
+    x = 3.5 + (Math.random() - 0.5) * 2;
+    y = 0 + Math.random() * 2;
+    z = 1 + (Math.random() - 0.5) * 2;
+    // Màu nâu đỏ
+    r = 0.6 + Math.random() * 0.2;
+    g = 0.25;
+    b = 0.15;
+  }
+  else {
+    // ✨ Dây cương vàng
+    const t = Math.random();
+    x = -8 + t * 9;
+    y = -0.3 + Math.sin(t * Math.PI * 0.8) * 0.8;
+    z = 1 + (Math.random() - 0.5) * 0.8;
+    // Màu vàng lấp lánh
+    r = 1;
+    g = 0.85 + Math.random() * 0.15;
+    b = 0.2 + Math.random() * 0.2;
+  }
+  
+  sleighPositions[i * 3] = x;
+  sleighPositions[i * 3 + 1] = y;
+  sleighPositions[i * 3 + 2] = z;
+  
+  sleighColors[i * 3] = r;
+  sleighColors[i * 3 + 1] = g;
+  sleighColors[i * 3 + 2] = b;
+}
+
+const sleighGeo = new THREE.BufferGeometry();
+sleighGeo.setAttribute('position', new THREE.BufferAttribute(sleighPositions, 3));
+sleighGeo.setAttribute('color', new THREE.BufferAttribute(sleighColors, 3));
+
+const sleighMat = new THREE.PointsMaterial({
+  map: glowTexture,
+  size: 0.8,  // Tăng size để rõ hơn
+  vertexColors: true,
+  transparent: true,
+  opacity: 1.0,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+
+const sleighMesh = new THREE.Points(sleighGeo, sleighMat);
+sleighGroup.add(sleighMesh);
+
+// Trail particles (vệt sáng phía sau) - TĂNG SỐ LƯỢNG
+const TRAIL_COUNT = 200;
+const trailPositions = new Float32Array(TRAIL_COUNT * 3);
+const trailColors = new Float32Array(TRAIL_COUNT * 3);
+
+for (let i = 0; i < TRAIL_COUNT; i++) {
+  trailPositions[i * 3] = 3 + i * 0.3;
+  trailPositions[i * 3 + 1] = (Math.random() - 0.5) * 1;
+  trailPositions[i * 3 + 2] = 1 + (Math.random() - 0.5) * 1;
+  
+  const fade = 1 - i / TRAIL_COUNT;
+  trailColors[i * 3] = 1;
+  trailColors[i * 3 + 1] = 0.8 * fade;
+  trailColors[i * 3 + 2] = 0.3 * fade;
+}
+
+const trailGeo = new THREE.BufferGeometry();
+trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+trailGeo.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
+
+const trailMat = new THREE.PointsMaterial({
+  map: glowTexture,
+  size: 0.4,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.6,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+
+const trailMesh = new THREE.Points(trailGeo, trailMat);
+sleighGroup.add(trailMesh);
+
+// Sleigh orbit parameters
+const SLEIGH_RADIUS = 35;
+const SLEIGH_HEIGHT = 15;
+const SLEIGH_SPEED = 0.3;
+
+/* ================= ANIMATE ================= */
+function animate() {
+  requestAnimationFrame(animate);
+  
+  const time = Date.now() * 0.001;
+  
+  // Animate heart particles
+  const hPos = heartGeo.attributes.position.array;
+  for (let i = 0; i < CONFIG.heartParticles; i++) {
+    const idx = i * 3;
+    const target = heartTargets[i];
+    const speed = heartSpeeds[i];
+    
+    hPos[idx] += (target.x - hPos[idx]) * speed;
+    hPos[idx + 1] += (target.y - hPos[idx + 1]) * speed;
+    hPos[idx + 2] += (target.z - hPos[idx + 2]) * speed;
+  }
+  heartGeo.attributes.position.needsUpdate = true;
+  
+  // Animate STREAM particles (bay vào bồi đắp tim)
+  const sPos = streamGeo.attributes.position.array;
+  for (let i = 0; i < STREAM_COUNT; i++) {
+    const idx = i * 3;
+    const target = streamTargets[i];
+    const speed = streamSpeeds[i];
+    
+    // Bay về phía target
+    sPos[idx] += (target.x - sPos[idx]) * speed;
+    sPos[idx + 1] += (target.y - sPos[idx + 1]) * speed;
+    sPos[idx + 2] += (target.z - sPos[idx + 2]) * speed;
+    
+    // Kiểm tra đã đến gần target chưa
+    const dx = target.x - sPos[idx];
+    const dy = target.y - sPos[idx + 1];
+    const dz = target.z - sPos[idx + 2];
+    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+    
+    if (dist < 1) {
+      // Đã đến - reset particle
+      resetStreamParticle(i);
+    }
+  }
+  streamGeo.attributes.position.needsUpdate = true;
+  
+  // Pulse nhẹ
+  const pulse = 1 + Math.sin(time * 2) * 0.02;
+  heartMesh.scale.set(pulse, pulse, pulse);
+  
+  // Xoay nhẹ
+  heartMesh.rotation.y = Math.sin(time * 0.3) * 0.1;
+  
+  // Ring xoay
+  ringMesh.rotation.y += 0.01;
+  
+  // 🎅🦌 Santa Sleigh bay vòng vòng quanh tim
+  const sleighAngle = time * SLEIGH_SPEED;
+  const sleighX = Math.cos(sleighAngle) * SLEIGH_RADIUS;
+  const sleighZ = Math.sin(sleighAngle) * SLEIGH_RADIUS;
+  const sleighY = SLEIGH_HEIGHT + Math.sin(time * 0.8) * 3; // Bay lên xuống nhẹ
+  
+  sleighGroup.position.set(sleighX, sleighY, sleighZ);
+  sleighGroup.rotation.y = -sleighAngle + Math.PI / 2; // Hướng theo đường bay
+  
+  // Tuần lộc chạy (nhấp nhô)
+  sleighMesh.position.y = Math.sin(time * 8) * 0.15;
+  
+  // Floating particles bay lên
+  const fPos = floatGeo.attributes.position.array;
+  for (let i = 0; i < FLOAT_COUNT; i++) {
+    fPos[i * 3 + 1] += floatSpeeds[i];
+    if (fPos[i * 3 + 1] > 40) {
+      fPos[i * 3 + 1] = -35;
+      fPos[i * 3] = (Math.random() - 0.5) * 60;
+      fPos[i * 3 + 2] = (Math.random() - 0.5) * 60;
+    }
+  }
+  floatGeo.attributes.position.needsUpdate = true;
+  
+  // ❄️ SNOW FALLING
+  const snPos = snowGeo.attributes.position.array;
+  for (let i = 0; i < SNOW_COUNT; i++) {
+    const idx = i * 3;
+    // Rơi xuống
+    snPos[idx + 1] -= snowSpeeds[i];
+    // Lắc lư theo gió
+    snPos[idx] += Math.sin(time * 2 + snowDrifts[i]) * 0.02;
+    snPos[idx + 2] += Math.cos(time * 1.5 + snowDrifts[i]) * 0.015;
+    
+    // Reset khi rơi quá thấp
+    if (snPos[idx + 1] < -30) {
+      snPos[idx] = (Math.random() - 0.5) * 100;
+      snPos[idx + 1] = 50 + Math.random() * 20;
+      snPos[idx + 2] = (Math.random() - 0.5) * 100;
+    }
+  }
+  snowGeo.attributes.position.needsUpdate = true;
+  
+  // 🎅 Santa hat nhấp nhô nhẹ theo nhịp tim
+  hatMesh.position.y = Math.sin(time * 2) * 0.3;
+  hatMesh.rotation.z = Math.sin(time * 0.5) * 0.05; // Nghiêng nhẹ
+  
+  // Fade in ảnh từ từ (dùng window reference)
+  if (imageReady && window.imageMat && imageOpacity < 1) {
+    imageOpacity += 0.003; // Fade chậm hơn, lãng mạn hơn
+    window.imageMat.opacity = Math.min(imageOpacity, 1);
+  }
+  
+  // Image pulse theo tim
+  if (window.imageSprite) {
+    window.imageSprite.scale.set(
+      CONFIG.imageSize * pulse,
+      CONFIG.imageSize * pulse,
+      1
+    );
+  }
+  
+  renderer.render(scene, camera);
+}
+animate();
+
+/* ================= RESIZE ================= */
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  updateCamera();
+});
+</script>
+</body>
+</html>
