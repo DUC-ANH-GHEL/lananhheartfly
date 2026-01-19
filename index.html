@@ -605,6 +605,7 @@
     const step = () => {
       if (i >= queue.length) {
         hide();
+        window.dispatchEvent(new Event('hud:done'));
         return;
       }
 
@@ -728,6 +729,19 @@ const heartSpeeds = [];
 const heartArrived = []; // Track xem particle đã đến đích chưa
 const heartDelays = []; // Delay trước khi reset
 
+// Morph targets (heart -> cake)
+let cakeTargets = null;
+let cakeColorTargets = null;
+let cakeCandleTops = null;
+let morphActive = false;
+let morphProgress = 0;
+const MORPH_DURATION_SEC = 6.5;
+
+// Candle flame mesh
+let flameMesh = null;
+let flameBase = null;
+let flamePhase = null;
+
 for (let i = 0; i < CONFIG.heartParticles; i++) {
   const target = HEART_POINTS[i];
   heartTargets.push(target);
@@ -747,6 +761,181 @@ for (let i = 0; i < CONFIG.heartParticles; i++) {
   heartColors[i * 3 + 1] = 0.15 + normalizedY * 0.25 + Math.random() * 0.1;
   heartColors[i * 3 + 2] = 0.35 + normalizedY * 0.2 + Math.random() * 0.15;
 }
+
+function smoothstep(t) {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * (3 - 2 * x);
+}
+
+function generateCakeTargets(count) {
+  const targets = new Array(count);
+  const colors = new Float32Array(count * 3);
+
+  // Cake dimensions (tuned to roughly match heart scale)
+  const cakeRadius = 13;
+  const cakeHeight = 10;
+  const baseY = -6;
+  const topY = baseY + cakeHeight;
+
+  const bodyCount = Math.floor(count * 0.84);
+  const frostingCount = Math.floor(count * 0.08);
+  const candleCount = Math.floor(count * 0.06);
+  const sprinkleCount = count - bodyCount - frostingCount - candleCount;
+
+  let write = 0;
+
+  // Body (cylinder filled)
+  for (let i = 0; i < bodyCount; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = cakeRadius * Math.sqrt(Math.random());
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const y = baseY + Math.random() * cakeHeight;
+    targets[write] = new THREE.Vector3(x, y, z);
+
+    // Pink cake body
+    const c = new THREE.Color().setHSL(0.95 + Math.random() * 0.03, 0.55 + Math.random() * 0.2, 0.62 + Math.random() * 0.12);
+    colors[write * 3] = c.r;
+    colors[write * 3 + 1] = c.g;
+    colors[write * 3 + 2] = c.b;
+    write++;
+  }
+
+  // Frosting top (slightly wavy disc)
+  for (let i = 0; i < frostingCount; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = cakeRadius * (0.65 + Math.random() * 0.35);
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const y = topY + (Math.random() - 0.5) * 0.9;
+    targets[write] = new THREE.Vector3(x, y, z);
+
+    // Creamy frosting
+    const c = new THREE.Color().setHSL(0.02 + Math.random() * 0.03, 0.25 + Math.random() * 0.2, 0.92);
+    colors[write * 3] = c.r;
+    colors[write * 3 + 1] = c.g;
+    colors[write * 3 + 2] = c.b;
+    write++;
+  }
+
+  // Candles (vertical thin cylinders on top)
+  const candlePositions = [];
+  const candleNum = 6;
+  for (let c = 0; c < candleNum; c++) {
+    const a = (c / candleNum) * Math.PI * 2 + Math.random() * 0.18;
+    const r = 6.2 + Math.random() * 0.8;
+    candlePositions.push(new THREE.Vector3(Math.cos(a) * r, topY + 0.4, Math.sin(a) * r));
+  }
+
+  const candleHeight = 6.5;
+  for (let i = 0; i < candleCount; i++) {
+    const candle = candlePositions[i % candlePositions.length];
+    const a = Math.random() * Math.PI * 2;
+    const rr = 0.65 * Math.sqrt(Math.random());
+    const x = candle.x + Math.cos(a) * rr;
+    const z = candle.z + Math.sin(a) * rr;
+    const y = candle.y + Math.random() * candleHeight;
+    targets[write] = new THREE.Vector3(x, y, z);
+
+    // Pastel candle colors
+    const hue = (0.55 + (i % candlePositions.length) * 0.08 + Math.random() * 0.03) % 1;
+    const ccol = new THREE.Color().setHSL(hue, 0.55, 0.78);
+    colors[write * 3] = ccol.r;
+    colors[write * 3 + 1] = ccol.g;
+    colors[write * 3 + 2] = ccol.b;
+    write++;
+  }
+
+  // Sprinkles around top edge
+  for (let i = 0; i < sprinkleCount; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = cakeRadius * (0.88 + Math.random() * 0.12);
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const y = topY - 0.5 + (Math.random() - 0.5) * 1.4;
+    targets[write] = new THREE.Vector3(x, y, z);
+
+    const hue = Math.random();
+    const c = new THREE.Color().setHSL(hue, 0.75, 0.7);
+    colors[write * 3] = c.r;
+    colors[write * 3 + 1] = c.g;
+    colors[write * 3 + 2] = c.b;
+    write++;
+  }
+
+  // Candle tops (for flames)
+  const candleTops = candlePositions.map(p => new THREE.Vector3(p.x, p.y + candleHeight + 0.2, p.z));
+  return { targets, colors, candleTops };
+}
+
+function ensureFlames(candleTops) {
+  if (flameMesh) return;
+
+  const FLAME_COUNT = 360;
+  const flamePos = new Float32Array(FLAME_COUNT * 3);
+  const flameCol = new Float32Array(FLAME_COUNT * 3);
+  flameBase = new Float32Array(FLAME_COUNT * 3);
+  flamePhase = new Float32Array(FLAME_COUNT);
+
+  for (let i = 0; i < FLAME_COUNT; i++) {
+    const base = candleTops[i % candleTops.length];
+    const idx = i * 3;
+    const rx = (Math.random() - 0.5) * 0.55;
+    const rz = (Math.random() - 0.5) * 0.55;
+    const ry = Math.random() * 0.9;
+
+    flameBase[idx] = base.x + rx;
+    flameBase[idx + 1] = base.y + ry;
+    flameBase[idx + 2] = base.z + rz;
+
+    flamePos[idx] = flameBase[idx];
+    flamePos[idx + 1] = flameBase[idx + 1];
+    flamePos[idx + 2] = flameBase[idx + 2];
+
+    flamePhase[i] = Math.random() * Math.PI * 2;
+
+    // orange/yellow flame gradient
+    const t = Math.random();
+    const c = new THREE.Color().setHSL(0.08 + t * 0.06, 0.95, 0.62 + t * 0.2);
+    flameCol[idx] = c.r;
+    flameCol[idx + 1] = c.g;
+    flameCol[idx + 2] = c.b;
+  }
+
+  const flameGeo = new THREE.BufferGeometry();
+  flameGeo.setAttribute('position', new THREE.BufferAttribute(flamePos, 3));
+  flameGeo.setAttribute('color', new THREE.BufferAttribute(flameCol, 3));
+
+  const flameMat = new THREE.PointsMaterial({
+    map: glowTexture,
+    size: 1.15,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  flameMesh = new THREE.Points(flameGeo, flameMat);
+  flameMesh.renderOrder = 6000;
+  scene.add(flameMesh);
+}
+
+function startCakeMorph() {
+  if (morphActive) return;
+  const res = generateCakeTargets(CONFIG.heartParticles);
+  cakeTargets = res.targets;
+  cakeColorTargets = res.colors;
+  cakeCandleTops = res.candleTops;
+  morphActive = true;
+  morphProgress = 0;
+  ensureFlames(cakeCandleTops);
+}
+
+window.addEventListener('hud:done', () => {
+  if (!document.body.classList.contains('experience-on')) return;
+  startCakeMorph();
+});
 
 const heartGeo = new THREE.BufferGeometry();
 heartGeo.setAttribute('position', new THREE.BufferAttribute(heartPositions, 3));
@@ -1549,6 +1738,8 @@ const SLEIGH_RADIUS = 35;
 const SLEIGH_HEIGHT = 15;
 const SLEIGH_SPEED = 0.3;
 
+let lastFrameTime = Date.now() * 0.001;
+
 /* ================= ANIMATE ================= */
 function animate() {
   requestAnimationFrame(animate);
@@ -1557,6 +1748,8 @@ function animate() {
   if (!document.body.classList.contains('experience-on')) return;
   
   const time = Date.now() * 0.001;
+  const dt = Math.min(0.05, Math.max(0.0, time - lastFrameTime));
+  lastFrameTime = time;
 
   // Fireworks update
   for (let fi = fireworks.length - 1; fi >= 0; fi--) {
@@ -1592,16 +1785,48 @@ function animate() {
     }
   }
   
-  // Animate heart particles
+  // Heart -> Cake morph progress
+  if (morphActive && cakeTargets) {
+    morphProgress = Math.min(1, morphProgress + dt / MORPH_DURATION_SEC);
+
+    // Blend particle colors toward cake palette
+    if (cakeColorTargets) {
+      const tcol = smoothstep(Math.max(0, (morphProgress - 0.05) / 0.95));
+      for (let i = 0; i < CONFIG.heartParticles; i++) {
+        const ci = i * 3;
+        heartColors[ci] += (cakeColorTargets[ci] - heartColors[ci]) * (0.06 + tcol * 0.12);
+        heartColors[ci + 1] += (cakeColorTargets[ci + 1] - heartColors[ci + 1]) * (0.06 + tcol * 0.12);
+        heartColors[ci + 2] += (cakeColorTargets[ci + 2] - heartColors[ci + 2]) * (0.06 + tcol * 0.12);
+      }
+      heartGeo.attributes.color.needsUpdate = true;
+    }
+  }
+
+  // Animate heart particles (or morph targets)
   const hPos = heartGeo.attributes.position.array;
+  const tm = morphActive && cakeTargets ? smoothstep(morphProgress) : 0;
   for (let i = 0; i < CONFIG.heartParticles; i++) {
     const idx = i * 3;
-    const target = heartTargets[i];
     const speed = heartSpeeds[i];
+
+    // Dynamic target: interpolate from heart -> cake
+    let tx, ty, tz;
+    if (morphActive && cakeTargets) {
+      const a = HEART_POINTS[i];
+      const b = cakeTargets[i];
+      tx = a.x + (b.x - a.x) * tm;
+      ty = a.y + (b.y - a.y) * tm;
+      tz = a.z + (b.z - a.z) * tm;
+    } else {
+      const target = heartTargets[i];
+      tx = target.x;
+      ty = target.y;
+      tz = target.z;
+    }
     
-    hPos[idx] += (target.x - hPos[idx]) * speed;
-    hPos[idx + 1] += (target.y - hPos[idx + 1]) * speed;
-    hPos[idx + 2] += (target.z - hPos[idx + 2]) * speed;
+    hPos[idx] += (tx - hPos[idx]) * speed;
+    hPos[idx + 1] += (ty - hPos[idx + 1]) * speed;
+    hPos[idx + 2] += (tz - hPos[idx + 2]) * speed;
   }
   heartGeo.attributes.position.needsUpdate = true;
   
@@ -1630,12 +1855,13 @@ function animate() {
   }
   streamGeo.attributes.position.needsUpdate = true;
   
-  // Pulse nhẹ
+  // Pulse/rotation: reduce once it becomes a cake
   const pulse = 1 + Math.sin(time * 2) * 0.02;
-  heartMesh.scale.set(pulse, pulse, pulse);
-  
-  // Xoay nhẹ
-  heartMesh.rotation.y = Math.sin(time * 0.3) * 0.1;
+  const cakeMix = morphActive ? tm : 0;
+  const pulseMix = 1 - cakeMix * 0.85;
+  heartMesh.scale.set(1 + (pulse - 1) * pulseMix, 1 + (pulse - 1) * pulseMix, 1 + (pulse - 1) * pulseMix);
+  heartMesh.rotation.y = Math.sin(time * 0.3) * 0.1 * (1 - cakeMix * 0.9);
+  heartMesh.rotation.x = Math.sin(time * 0.25) * 0.05 * (1 - cakeMix * 0.9);
   
   // Ring xoay
   ringMesh.rotation.y += 0.01;
@@ -1656,6 +1882,22 @@ function animate() {
   if (bannerSprite) {
     bannerSprite.position.y = 2.6 + Math.sin(time * 3.2) * 0.22;
     bannerSprite.material.opacity = 0.92 + Math.sin(time * 2.1) * 0.06;
+  }
+
+  // Candle flames (appear near end of morph)
+  if (flameMesh && flameBase && flamePhase) {
+    const showFlame = morphActive ? smoothstep((morphProgress - 0.55) / 0.45) : 0;
+    const arr = flameMesh.geometry.attributes.position.array;
+    for (let i = 0; i < flamePhase.length; i++) {
+      const idx = i * 3;
+      const flick = 0.22 + Math.sin(time * 10 + flamePhase[i]) * 0.18;
+      arr[idx] = flameBase[idx] + Math.sin(time * 6.2 + flamePhase[i]) * 0.06;
+      arr[idx + 1] = flameBase[idx + 1] + flick;
+      arr[idx + 2] = flameBase[idx + 2] + Math.cos(time * 6.0 + flamePhase[i]) * 0.06;
+    }
+    flameMesh.geometry.attributes.position.needsUpdate = true;
+    flameMesh.material.opacity = 0.95 * showFlame;
+    flameMesh.material.size = 1.0 + Math.sin(time * 7.5) * 0.15;
   }
   
   // Floating particles bay lên
