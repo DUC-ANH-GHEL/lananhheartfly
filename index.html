@@ -1225,6 +1225,107 @@ const trailMat = new THREE.PointsMaterial({
 const trailMesh = new THREE.Points(trailGeo, trailMat);
 sleighGroup.add(trailMesh);
 
+// Trailing banner text (like the sleigh is pulling it)
+const bannerCanvas = document.createElement('canvas');
+bannerCanvas.width = 1024;
+bannerCanvas.height = 256;
+const bannerCtx = bannerCanvas.getContext('2d');
+
+function roundRect(ctx, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
+
+function drawBannerText() {
+  const ctx = bannerCtx;
+  ctx.clearRect(0, 0, bannerCanvas.width, bannerCanvas.height);
+
+  // Soft glow background
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  const bgGrad = ctx.createLinearGradient(0, 0, bannerCanvas.width, bannerCanvas.height);
+  bgGrad.addColorStop(0, 'rgba(255,120,190,0.20)');
+  bgGrad.addColorStop(0.55, 'rgba(160,120,255,0.16)');
+  bgGrad.addColorStop(1, 'rgba(110,220,255,0.10)');
+  ctx.fillStyle = bgGrad;
+  roundRect(ctx, 40, 46, bannerCanvas.width - 80, bannerCanvas.height - 92, 54);
+  ctx.fill();
+
+  // Inner glass
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = 'rgba(10, 6, 18, 0.45)';
+  roundRect(ctx, 52, 58, bannerCanvas.width - 104, bannerCanvas.height - 116, 44);
+  ctx.fill();
+
+  // Border
+  ctx.globalAlpha = 0.9;
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+  roundRect(ctx, 52, 58, bannerCanvas.width - 104, bannerCanvas.height - 116, 44);
+  ctx.stroke();
+
+  // Sparkles
+  ctx.globalAlpha = 0.55;
+  for (let i = 0; i < 120; i++) {
+    const x = 80 + Math.random() * (bannerCanvas.width - 160);
+    const y = 70 + Math.random() * (bannerCanvas.height - 140);
+    const s = 1 + Math.random() * 2.2;
+    ctx.fillStyle = `rgba(255,255,255,${0.12 + Math.random() * 0.35})`;
+    ctx.beginPath();
+    ctx.arc(x, y, s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Text
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.font = '800 54px Poppins, Arial, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetY = 8;
+  ctx.fillText('Chúc mừng sinh nhật', bannerCanvas.width / 2, 108);
+
+  ctx.shadowBlur = 0;
+  ctx.font = '400 64px "Great Vibes", cursive';
+  const nameGrad = ctx.createLinearGradient(260, 0, bannerCanvas.width - 260, 0);
+  nameGrad.addColorStop(0, 'rgba(255,240,248,0.98)');
+  nameGrad.addColorStop(0.5, 'rgba(255,180,222,0.98)');
+  nameGrad.addColorStop(1, 'rgba(200,190,255,0.98)');
+  ctx.fillStyle = nameGrad;
+  ctx.fillText('Lan Anh', bannerCanvas.width / 2, 168);
+
+  ctx.restore();
+}
+
+drawBannerText();
+const bannerTexture = new THREE.CanvasTexture(bannerCanvas);
+bannerTexture.needsUpdate = true;
+bannerTexture.minFilter = THREE.LinearFilter;
+bannerTexture.magFilter = THREE.LinearFilter;
+
+const bannerMat = new THREE.SpriteMaterial({
+  map: bannerTexture,
+  transparent: true,
+  opacity: 0.98,
+  depthTest: false,
+  depthWrite: false
+});
+
+const bannerSprite = new THREE.Sprite(bannerMat);
+bannerSprite.scale.set(28, 7, 1);
+bannerSprite.position.set(18, 2.6, 1.0);
+bannerSprite.renderOrder = 2000;
+sleighGroup.add(bannerSprite);
+
 // Sleigh orbit parameters
 const SLEIGH_RADIUS = 35;
 const SLEIGH_HEIGHT = 15;
@@ -1298,6 +1399,12 @@ function animate() {
   
   // Tuần lộc chạy (nhấp nhô)
   sleighMesh.position.y = Math.sin(time * 8) * 0.15;
+
+  // Banner wobble so it feels like it's being pulled
+  if (bannerSprite) {
+    bannerSprite.position.y = 2.6 + Math.sin(time * 3.2) * 0.22;
+    bannerSprite.material.opacity = 0.92 + Math.sin(time * 2.1) * 0.06;
+  }
   
   // Floating particles bay lên
   const fPos = floatGeo.attributes.position.array;
