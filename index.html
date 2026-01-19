@@ -742,6 +742,9 @@ let flameMesh = null;
 let flameBase = null;
 let flamePhase = null;
 
+// Mid text between ring and cake
+let midTextSprite = null;
+
 for (let i = 0; i < CONFIG.heartParticles; i++) {
   const target = HEART_POINTS[i];
   heartTargets.push(target);
@@ -921,6 +924,68 @@ function ensureFlames(candleTops) {
   scene.add(flameMesh);
 }
 
+function ensureMidBirthdayText() {
+  if (midTextSprite) return;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Glow
+  ctx.shadowColor = 'rgba(255,120,190,0.55)';
+  ctx.shadowBlur = 24;
+  ctx.shadowOffsetY = 10;
+
+  // Line 1
+  ctx.font = '900 56px Poppins, Arial, sans-serif';
+  const grad = ctx.createLinearGradient(180, 0, canvas.width - 180, 0);
+  grad.addColorStop(0, 'rgba(255,240,248,0.98)');
+  grad.addColorStop(0.5, 'rgba(255,180,222,0.98)');
+  grad.addColorStop(1, 'rgba(200,190,255,0.98)');
+  ctx.fillStyle = grad;
+  ctx.fillText('HAPPY BIRTHDAY', canvas.width / 2, 98);
+
+  // Line 2
+  ctx.shadowColor = 'rgba(160,120,255,0.45)';
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 8;
+  ctx.font = '400 86px "Great Vibes", cursive';
+  ctx.fillStyle = 'rgba(255,255,255,0.96)';
+  ctx.fillText('Lan Anh', canvas.width / 2, 168);
+
+  // Subtle stroke for readability
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+  ctx.strokeText('HAPPY BIRTHDAY', canvas.width / 2, 98);
+  ctx.strokeText('Lan Anh', canvas.width / 2, 168);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    opacity: 0,
+    depthTest: false,
+    depthWrite: false
+  });
+
+  midTextSprite = new THREE.Sprite(mat);
+  midTextSprite.scale.set(32, 8, 1);
+  // Positioned between cake (around y ~ -6..4) and ring (around y ~ -22)
+  midTextSprite.position.set(0, -14, 2.2);
+  midTextSprite.renderOrder = 5500;
+  heartGroup.add(midTextSprite);
+}
+
 function startCakeMorph() {
   if (morphActive) return;
   const res = generateCakeTargets(CONFIG.heartParticles);
@@ -930,6 +995,7 @@ function startCakeMorph() {
   morphActive = true;
   morphProgress = 0;
   ensureFlames(cakeCandleTops);
+  ensureMidBirthdayText();
 }
 
 window.addEventListener('hud:done', () => {
@@ -1882,6 +1948,13 @@ function animate() {
   if (bannerSprite) {
     bannerSprite.position.y = 2.6 + Math.sin(time * 3.2) * 0.22;
     bannerSprite.material.opacity = 0.92 + Math.sin(time * 2.1) * 0.06;
+  }
+
+  // Mid birthday text (between cake and ring)
+  if (midTextSprite) {
+    const showText = morphActive ? smoothstep((morphProgress - 0.25) / 0.45) : 0;
+    midTextSprite.material.opacity = 0.92 * showText;
+    midTextSprite.position.y = -14 + Math.sin(time * 1.6) * 0.35;
   }
 
   // Candle flames (appear near end of morph)
