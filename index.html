@@ -407,6 +407,42 @@
     pointer-events: none;
     z-index: 10;
   }
+
+  /* HUD messages (extra activity) */
+  #hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 20;
+    display: grid;
+    place-items: start center;
+    padding-top: clamp(18px, 4vh, 40px);
+  }
+
+  #hudMessage {
+    width: min(780px, calc(100vw - 28px));
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: linear-gradient(180deg, rgba(10, 6, 18, 0.46), rgba(10, 6, 18, 0.24));
+    box-shadow: 0 18px 44px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.06);
+    backdrop-filter: blur(10px) saturate(135%);
+    color: rgba(255,255,255,0.94);
+    text-align: center;
+    letter-spacing: 0.4px;
+    transform: translateY(-8px);
+    opacity: 0;
+    transition: opacity 520ms ease, transform 520ms ease;
+  }
+
+  #hudMessage strong {
+    font-weight: 800;
+  }
+
+  body.experience-on #hudMessage.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
   
   canvas {
     display: block;
@@ -415,6 +451,7 @@
 </head>
 
 <body>
+<div id="hud" aria-hidden="true"><div id="hudMessage"></div></div>
 <div id="cardOverlay" class="card-overlay" role="button" aria-label="Mở thiệp mời sinh nhật" tabindex="0">
   <div class="card" aria-hidden="false">
     <div class="card-base" aria-hidden="true">
@@ -473,6 +510,9 @@
     if (experienceStarted) return;
     experienceStarted = true;
     document.body.classList.add('experience-on');
+
+    // Let the rest of the page know the experience is allowed to start now.
+    window.dispatchEvent(new Event('experience:start'));
   }
 
   function startMusicOnClick() {
@@ -523,6 +563,56 @@
       openCard();
     }
   });
+})();
+</script>
+
+<script>
+(() => {
+  const hudMessage = document.getElementById('hudMessage');
+  if (!hudMessage) return;
+
+  const queue = [
+    { html: '🎉 <strong>Chúc mừng sinh nhật Lan Anh</strong> 🎉', ms: 4200 },
+    { html: 'Chúc Lan Anh luôn thật rực rỡ ✨', ms: 4200 },
+    { html: 'Chạm / click bất kỳ để bắn pháo hoa 🎆', ms: 4600 },
+    { html: 'Nhìn lên bầu trời—tuần lộc đang kéo lời chúc 💫', ms: 4600 },
+  ];
+
+  let running = false;
+  let timer = 0;
+
+  function show(html) {
+    hudMessage.innerHTML = html;
+    hudMessage.classList.add('show');
+  }
+
+  function hide() {
+    hudMessage.classList.remove('show');
+  }
+
+  function runSequence() {
+    if (running) return;
+    running = true;
+
+    let i = 0;
+    const step = () => {
+      if (i >= queue.length) {
+        hide();
+        return;
+      }
+
+      const item = queue[i++];
+      show(item.html);
+      timer = window.setTimeout(() => {
+        hide();
+        timer = window.setTimeout(step, 520);
+      }, item.ms);
+    };
+
+    step();
+  }
+
+  window.addEventListener('experience:start', runSequence, { once: true });
 })();
 </script>
 
@@ -1341,6 +1431,112 @@ bannerSprite.position.set(18, 2.6, 1.0);
 bannerSprite.renderOrder = 2000;
 sleighGroup.add(bannerSprite);
 
+/* ================= FIREWORKS (extra activity) ================= */
+const fireworks = [];
+let fireworksEnabled = false;
+
+function createFirework(origin, intensity = 1) {
+  const COUNT = Math.floor(80 * intensity);
+  const positions = new Float32Array(COUNT * 3);
+  const colors = new Float32Array(COUNT * 3);
+  const velocities = new Float32Array(COUNT * 3);
+
+  const baseHue = Math.random();
+  for (let i = 0; i < COUNT; i++) {
+    const idx = i * 3;
+    positions[idx] = origin.x;
+    positions[idx + 1] = origin.y;
+    positions[idx + 2] = origin.z;
+
+    // Random sphere velocity
+    const u = Math.random();
+    const v = Math.random();
+    const theta = 2 * Math.PI * u;
+    const phi = Math.acos(2 * v - 1);
+    const speed = (0.35 + Math.random() * 0.9) * intensity;
+    velocities[idx] = Math.sin(phi) * Math.cos(theta) * speed;
+    velocities[idx + 1] = Math.cos(phi) * speed;
+    velocities[idx + 2] = Math.sin(phi) * Math.sin(theta) * speed;
+
+    // Color from HSV-ish palette
+    const hue = (baseHue + Math.random() * 0.18) % 1;
+    const sat = 0.75 + Math.random() * 0.25;
+    const val = 0.85 + Math.random() * 0.15;
+    const color = new THREE.Color().setHSL(hue, sat, val);
+    colors[idx] = color.r;
+    colors[idx + 1] = color.g;
+    colors[idx + 2] = color.b;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.PointsMaterial({
+    map: glowTexture,
+    size: 0.9,
+    vertexColors: true,
+    transparent: true,
+    opacity: 1,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.renderOrder = 5000;
+  scene.add(points);
+
+  fireworks.push({
+    points,
+    velocities,
+    life: 1,
+    decay: 0.016 + Math.random() * 0.01,
+    gravity: 0.012 + Math.random() * 0.01
+  });
+
+  // Cap active fireworks
+  while (fireworks.length > 10) {
+    const old = fireworks.shift();
+    scene.remove(old.points);
+    old.points.geometry.dispose();
+    old.points.material.dispose();
+  }
+}
+
+function spawnFireworkNearHeart(strength = 1) {
+  const origin = new THREE.Vector3(
+    (Math.random() - 0.5) * 26,
+    10 + Math.random() * 18,
+    (Math.random() - 0.5) * 26
+  );
+  createFirework(origin, strength);
+}
+
+window.addEventListener('experience:start', () => {
+  fireworksEnabled = true;
+  // Big welcoming burst
+  spawnFireworkNearHeart(1.15);
+  setTimeout(() => spawnFireworkNearHeart(1.0), 420);
+
+  // Auto fireworks
+  const interval = setInterval(() => {
+    if (!document.body.classList.contains('experience-on')) return;
+    spawnFireworkNearHeart(0.9);
+  }, 2300);
+
+  // Safety: stop if page hidden
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearInterval(interval);
+  }, { once: true });
+});
+
+// Tap/click anywhere to launch fireworks (only after experience starts)
+document.addEventListener('pointerdown', () => {
+  if (!fireworksEnabled) return;
+  if (!document.body.classList.contains('experience-on')) return;
+  spawnFireworkNearHeart(1.05);
+}, { passive: true });
+
 // Sleigh orbit parameters
 const SLEIGH_RADIUS = 35;
 const SLEIGH_HEIGHT = 15;
@@ -1354,6 +1550,40 @@ function animate() {
   if (!document.body.classList.contains('experience-on')) return;
   
   const time = Date.now() * 0.001;
+
+  // Fireworks update
+  for (let fi = fireworks.length - 1; fi >= 0; fi--) {
+    const fw = fireworks[fi];
+    fw.life -= fw.decay;
+
+    const geo = fw.points.geometry;
+    const posAttr = geo.getAttribute('position');
+    const pos = posAttr.array;
+    const vel = fw.velocities;
+
+    for (let i = 0; i < pos.length; i += 3) {
+      vel[i + 1] -= fw.gravity;
+      pos[i] += vel[i];
+      pos[i + 1] += vel[i + 1];
+      pos[i + 2] += vel[i + 2];
+
+      // subtle drag
+      vel[i] *= 0.985;
+      vel[i + 1] *= 0.985;
+      vel[i + 2] *= 0.985;
+    }
+    posAttr.needsUpdate = true;
+
+    fw.points.material.opacity = Math.max(0, fw.life);
+    fw.points.material.size = 0.9 + (1 - fw.life) * 0.6;
+
+    if (fw.life <= 0) {
+      scene.remove(fw.points);
+      fw.points.geometry.dispose();
+      fw.points.material.dispose();
+      fireworks.splice(fi, 1);
+    }
+  }
   
   // Animate heart particles
   const hPos = heartGeo.attributes.position.array;
