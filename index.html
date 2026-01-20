@@ -628,11 +628,6 @@
     inset: 0;
     z-index: 25;
     pointer-events: none;
-    opacity: 0;
-    transition: opacity 700ms ease;
-  }
-
-  body.wishes-on #wishesOverlay {
     opacity: 1;
   }
 
@@ -640,6 +635,12 @@
     position: absolute;
     inset: 0;
     overflow: hidden;
+    opacity: 0;
+    transition: opacity 700ms ease;
+  }
+
+  body.wishes-on #lanternLayer {
+    opacity: 1;
   }
 
   .lantern {
@@ -872,8 +873,13 @@
     50% { transform: translateY(-3px); opacity: 1; }
   }
 
-  body.wishes-on #wishFab {
+  body.experience-on #wishFab {
     display: inline-flex;
+  }
+
+  body.wish-modal #wishFab {
+    opacity: 0;
+    pointer-events: none;
   }
 
   #wishModal {
