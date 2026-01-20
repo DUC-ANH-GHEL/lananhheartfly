@@ -95,7 +95,7 @@ module.exports = async (req, res) => {
 
     if (req.method === 'GET') {
       const limitRaw = (req.query && req.query.limit) || '30';
-      const limit = Math.max(1, Math.min(80, parseInt(limitRaw, 10) || 30));
+      const limit = Math.max(1, Math.min(500, parseInt(limitRaw, 10) || 30));
 
       const rows = await sql`
         SELECT id, name, message, created_at

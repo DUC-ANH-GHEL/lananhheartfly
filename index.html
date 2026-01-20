@@ -1747,8 +1747,7 @@ window.addEventListener('hud:done', () => {
 });
 
 /* ================= WISHES (Concept D: Floating Lanterns) ================= */
-const WISHES_DELAY_AFTER_CAKE_MS = 10000; // cake sits for 10s first
-const ENDING_DELAY_AFTER_WISHES_MS = 60000; // wait 60s after wishes finish, then show ending
+const WISHES_DELAY_AFTER_CAKE_MS = 5000; // cake sits for 5s first
 function resolveWishesApiUrl() {
   const localHosts = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
   const isLocal = (location.protocol === 'file:') || localHosts.has(location.hostname);
@@ -1769,19 +1768,33 @@ let wishesRemainingMs = 0;
 let wishesPaused = false;
 let wishesTimerOnDone = null;
 
+let wishesPool = [];
+let wishesCursor = 0;
+let wishesPriority = [];
+let lanternSlotEls = [];
+
 // Lantern placement: strict non-overlap via fixed horizontal slots.
 let lanternSlotCount = 4;
-let lanternSlotOccupied = new Array(lanternSlotCount).fill(false);
 let lanternSlotCentersPct = [];
+let lanternSlotNextOkMs = new Array(lanternSlotCount).fill(0);
+
+let lanternFeedTimerId = 0;
+let lanternFeedRunning = false;
+
+const LANTERN_FEED_MIN_INTERVAL_MS = 900;
+const LANTERN_FEED_JITTER_MS = 520;
+const LANTERN_SLOT_MIN_GAP_MS = 6500;
 
 function recomputeLanternSlots() {
   const w = Math.max(320, window.innerWidth || 0);
-  lanternSlotCount = w < 520 ? 3 : (w < 900 ? 4 : 5);
-  lanternSlotOccupied = new Array(lanternSlotCount).fill(false);
+  // More columns than before to allow a denser (but still non-overlapping) stream.
+  lanternSlotCount = w < 520 ? 5 : (w < 900 ? 7 : 9);
   lanternSlotCentersPct = [];
   for (let i = 0; i < lanternSlotCount; i++) {
     lanternSlotCentersPct.push(((i + 0.5) / lanternSlotCount) * 100);
   }
+
+  lanternSlotNextOkMs = new Array(lanternSlotCount).fill(0);
 }
 
 recomputeLanternSlots();
@@ -1791,14 +1804,16 @@ window.addEventListener('resize', () => {
 });
 
 function maxLanternsOnScreen() {
-  return lanternSlotCount;
+  // Keep a hard cap to avoid DOM overload, but allow more than slotCount.
+  return Math.max(lanternSlotCount + 3, Math.floor(lanternSlotCount * 1.8));
 }
 
-function pickFreeSlot() {
+function pickSpawnSlot(nowMs) {
   const start = (Math.random() * lanternSlotCount) | 0;
   for (let off = 0; off < lanternSlotCount; off++) {
     const idx = (start + off) % lanternSlotCount;
-    if (!lanternSlotOccupied[idx]) return idx;
+    const okAt = lanternSlotNextOkMs[idx] || 0;
+    if (nowMs >= okAt) return idx;
   }
   return -1;
 }
@@ -1821,49 +1836,73 @@ function clearWishesTimeouts() {
   wishesTimerOnDone = null;
 }
 
-function finishWishesThenFinal() {
-  document.body.classList.remove('wishes-on');
-  document.body.classList.remove('wish-modal');
-  wishesPlaying = false;
-  triggerFinalOverlay();
+function stopLanternFeed() {
+  lanternFeedRunning = false;
+  if (lanternFeedTimerId) {
+    clearTimeout(lanternFeedTimerId);
+    lanternFeedTimerId = 0;
+  }
 }
 
-function scheduleWishesTimer(ms, onDone) {
-  if (wishesDoneTimerId) clearTimeout(wishesDoneTimerId);
-  wishesRemainingMs = Math.max(0, ms | 0);
-  wishesEndAtMs = Date.now() + wishesRemainingMs;
-  wishesPaused = false;
-  wishesTimerOnDone = typeof onDone === 'function' ? onDone : null;
-
-  wishesDoneTimerId = window.setTimeout(() => {
-    // Never end while user is typing in the modal
-    if (document.body.classList.contains('wish-modal')) {
-      wishesRemainingMs = Math.max(0, wishesEndAtMs - Date.now());
-      wishesPaused = true;
-      wishesDoneTimerId = 0;
-      return;
-    }
-    if (wishesTimerOnDone) wishesTimerOnDone();
-  }, wishesRemainingMs);
-  wishesTimeouts.push(wishesDoneTimerId);
+function cleanupLanternSlots() {
+  const layer = document.getElementById('lanternLayer');
+  if (layer) layer.innerHTML = '';
+  lanternSlotEls = [];
+  stopLanternFeed();
 }
 
-function pauseWishesEndTimer() {
-  if (!wishesPlaying) return;
-  if (wishesPaused) return;
-  if (!wishesDoneTimerId) return;
-  clearTimeout(wishesDoneTimerId);
-  wishesDoneTimerId = 0;
-  wishesRemainingMs = Math.max(0, wishesEndAtMs - Date.now());
-  wishesPaused = true;
+function nextWish() {
+  if (wishesPriority.length) return wishesPriority.shift();
+  if (!wishesPool.length) {
+    return { name: 'Góc lời chúc', message: 'Bấm “Gửi lời chúc” để gửi điều bạn muốn nói tới Lan Anh nhé ✨' };
+  }
+  const w = wishesPool[wishesCursor % wishesPool.length];
+  wishesCursor++;
+  return w;
 }
 
-function resumeWishesEndTimer() {
-  if (!wishesPlaying) return;
-  if (!wishesPaused) return;
-  wishesEndAtMs = Date.now() + wishesRemainingMs;
-  wishesPaused = false;
-  scheduleWishesTimer(wishesRemainingMs, wishesTimerOnDone);
+function setLanternContent(lantern, wish) {
+  const safeName = (wish?.name || '').trim();
+  const safeMsg = (wish?.message || '').trim();
+
+  let inner = lantern.querySelector('.lantern-inner');
+  if (!inner) {
+    inner = document.createElement('div');
+    inner.className = 'lantern-inner';
+    lantern.appendChild(inner);
+  }
+  inner.textContent = '';
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'lantern-name';
+  nameEl.textContent = safeName ? safeName : 'Một người bạn';
+
+  const msgEl = document.createElement('div');
+  msgEl.className = 'lantern-msg';
+  msgEl.textContent = safeMsg || 'Chúc Lan Anh một tuổi mới thật rực rỡ ✨';
+
+  inner.appendChild(nameEl);
+  inner.appendChild(msgEl);
+}
+
+function restartLanternAnimation(lantern) {
+  // Randomize start offset a bit
+  lantern.style.setProperty('--y0', `${Math.random() * 60}px`);
+  const dur = 46 + Math.random() * 22;
+  lantern.style.setProperty('--dur', `${dur}s`);
+  const sway = 3.4 + Math.random() * 2.8;
+  lantern.style.setProperty('--sway', `${sway}s`);
+
+  // Restart CSS animation
+  lantern.style.animation = 'none';
+  // Force reflow
+  void lantern.offsetHeight;
+  lantern.style.animation = '';
+}
+
+function showWishNow(wish) {
+  // Show instantly by spawning a new lantern.
+  spawnLantern(wish);
 }
 
 function shuffleInPlace(arr) {
@@ -1880,6 +1919,8 @@ function triggerFinalOverlay() {
   if (finalTriggered) return;
   finalTriggered = true;
 
+  stopLanternFeed();
+
   if (fireworksIntervalId) {
     clearInterval(fireworksIntervalId);
     fireworksIntervalId = 0;
@@ -1889,11 +1930,11 @@ function triggerFinalOverlay() {
 }
 
 async function fetchWishes(limit = 30) {
-  const capped = Math.max(1, Math.min(80, limit | 0));
+  const capped = Math.max(1, Math.min(500, limit | 0));
   const res = await fetch(`${WISHES_API_URL}?limit=${capped}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`fetch wishes failed: ${res.status}`);
   const data = await res.json();
-  const wishes = Array.isArray(data?.wishes) ? data.wishes : [];
+  const wishes = Array.isArray(data) ? data : (Array.isArray(data?.wishes) ? data.wishes : []);
   return wishes
     .map(w => ({
       name: typeof w.name === 'string' ? w.name : '',
@@ -1919,7 +1960,8 @@ function spawnLantern(wish) {
   // Cap visible lanterns to reduce stacking
   if (layer.childElementCount >= maxLanternsOnScreen()) return;
 
-  const slot = pickFreeSlot();
+  const nowMs = Date.now();
+  const slot = pickSpawnSlot(nowMs);
   if (slot < 0) return;
 
   const lantern = document.createElement('div');
@@ -1966,22 +2008,42 @@ function spawnLantern(wish) {
   const sway = 3.4 + Math.random() * 2.8;
   lantern.style.setProperty('--sway', `${sway}s`);
 
-  lanternSlotOccupied[slot] = true;
+  // Prevent same-slot lanterns from being too close vertically.
+  lanternSlotNextOkMs[slot] = nowMs + LANTERN_SLOT_MIN_GAP_MS + Math.random() * 2200;
 
   layer.appendChild(lantern);
   lantern.addEventListener('animationend', () => {
-    lanternSlotOccupied[slot] = false;
     lantern.remove();
   }, { once: true });
+}
+
+function startLanternFeed() {
+  const layer = document.getElementById('lanternLayer');
+  if (!layer) return;
+  if (lanternFeedRunning) return;
+  lanternFeedRunning = true;
+
+  const tick = () => {
+    if (!lanternFeedRunning) return;
+    if (!document.body.classList.contains('wishes-on')) {
+      stopLanternFeed();
+      return;
+    }
+
+    spawnLantern(nextWish());
+    const nextIn = LANTERN_FEED_MIN_INTERVAL_MS + Math.random() * LANTERN_FEED_JITTER_MS;
+    lanternFeedTimerId = window.setTimeout(tick, nextIn);
+  };
+
+  // Prime a small burst so it feels immediate.
+  for (let i = 0; i < Math.min(3, lanternSlotCount); i++) spawnLantern(nextWish());
+  lanternFeedTimerId = window.setTimeout(tick, 320);
 }
 
 function setWishModalOpen(open) {
   document.body.classList.toggle('wish-modal', open);
   const modal = document.getElementById('wishModal');
   if (modal) modal.setAttribute('aria-hidden', open ? 'false' : 'true');
-
-  if (open) pauseWishesEndTimer();
-  else resumeWishesEndTimer();
 }
 
 function wireWishUI() {
@@ -2014,7 +2076,9 @@ function wireWishUI() {
       await postWish(name, message);
       setWishModalOpen(false);
       msgInput.value = '';
-      spawnLantern({ name, message });
+      const w = { name, message };
+      wishesPriority.push(w);
+      showWishNow(w);
     } catch (e) {
       console.warn(e);
       send.textContent = 'Lỗi, thử lại';
@@ -2032,6 +2096,7 @@ async function startWishesSequence() {
   if (wishesPlaying || finalTriggered) return;
   wishesPlaying = true;
   clearWishesTimeouts();
+  cleanupLanternSlots();
 
   // Pause fireworks during wishes for a calmer vibe
   if (fireworksIntervalId) {
@@ -2043,28 +2108,17 @@ async function startWishesSequence() {
 
   let wishes = [];
   try {
-    wishes = await fetchWishes(36);
+    wishes = await fetchWishes(500);
   } catch (e) {
     console.warn('Wishes API unavailable, continuing without feed.', e);
   }
 
-  wishes = shuffleInPlace(wishes).slice(0, 26);
-  if (wishes.length === 0) {
-    wishes = [{ name: 'Góc lời chúc', message: 'Bấm “Gửi lời chúc” để gửi điều bạn muốn nói tới Lan Anh nhé ✨' }];
-  }
+  wishesPool = shuffleInPlace(wishes);
+  wishesCursor = 0;
 
-  const spawnEveryMs = (window.innerWidth || 0) < 520 ? 3400 : 2600;
-  wishes.forEach((w, idx) => {
-    const t = setTimeout(() => spawnLantern(w), idx * spawnEveryMs);
-    wishesTimeouts.push(t);
-  });
-
-  // Stage 1: play through the wishes feed
-  const feedMs = Math.max(7000, wishes.length * spawnEveryMs + 9000);
-  scheduleWishesTimer(feedMs, () => {
-    // Stage 2: after wishes are done, wait 60s then show ending
-    scheduleWishesTimer(ENDING_DELAY_AFTER_WISHES_MS, finishWishesThenFinal);
-  });
+  // Start a continuous stream of lanterns.
+  recomputeLanternSlots();
+  startLanternFeed();
 }
 
 window.addEventListener('cake:done', () => {
