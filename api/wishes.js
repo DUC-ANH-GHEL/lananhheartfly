@@ -1,0 +1,121 @@
+// Vercel/Netlify-style serverless function (Node.js)
+// - GET  /api/wishes?limit=30
+// - POST /api/wishes { name, message }
+//
+// IMPORTANT: set DATABASE_URL as an environment variable in your hosting platform.
+// Do NOT commit secrets.
+
+const postgres = require('postgres');
+
+const MAX_NAME = 40;
+const MAX_MESSAGE = 240;
+
+function withCors(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Max-Age', '86400');
+}
+
+function getSql() {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    const err = new Error('Missing DATABASE_URL env var');
+    err.statusCode = 500;
+    throw err;
+  }
+
+  return postgres(url, {
+    ssl: 'require',
+    max: 1,
+    prepare: false,
+    idle_timeout: 20,
+    connect_timeout: 15
+  });
+}
+
+async function ensureSchema(sql) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS wishes (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL DEFAULT '',
+      message TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS wishes_created_at_idx ON wishes (created_at DESC);`;
+}
+
+function safeText(v, maxLen) {
+  if (typeof v !== 'string') return '';
+  const s = v.trim().replace(/\s+/g, ' ');
+  return s.length > maxLen ? s.slice(0, maxLen) : s;
+}
+
+module.exports = async (req, res) => {
+  withCors(res);
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
+  try {
+    const sql = getSql();
+    await ensureSchema(sql);
+
+    if (req.method === 'GET') {
+      const limitRaw = (req.query && req.query.limit) || '30';
+      const limit = Math.max(1, Math.min(80, parseInt(limitRaw, 10) || 30));
+
+      const rows = await sql`
+        SELECT id, name, message, created_at
+        FROM wishes
+        ORDER BY created_at DESC
+        LIMIT ${limit}
+      `;
+
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.statusCode = 200;
+      res.end(JSON.stringify({ wishes: rows }));
+      await sql.end({ timeout: 1 });
+      return;
+    }
+
+    if (req.method === 'POST') {
+      const body = req.body || {};
+      const name = safeText(body.name || '', MAX_NAME);
+      const message = safeText(body.message || '', MAX_MESSAGE);
+
+      if (!message) {
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.end(JSON.stringify({ error: 'Message is required' }));
+        await sql.end({ timeout: 1 });
+        return;
+      }
+
+      const inserted = await sql`
+        INSERT INTO wishes (name, message)
+        VALUES (${name}, ${message})
+        RETURNING id, name, message, created_at
+      `;
+
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.statusCode = 201;
+      res.end(JSON.stringify({ wish: inserted[0] }));
+      await sql.end({ timeout: 1 });
+      return;
+    }
+
+    res.statusCode = 405;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify({ error: 'Method not allowed' }));
+  } catch (e) {
+    const status = e && (e.statusCode || e.status) ? (e.statusCode || e.status) : 500;
+    res.statusCode = status;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify({ error: 'Server error', detail: String(e && e.message ? e.message : e) }));
+  }
+};

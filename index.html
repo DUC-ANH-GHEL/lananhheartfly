@@ -622,6 +622,211 @@
     transform: translateY(0);
   }
 
+  /* Wishes overlay (Floating Lanterns) */
+  #wishesOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 700ms ease;
+  }
+
+  body.wishes-on #wishesOverlay {
+    opacity: 1;
+  }
+
+  #lanternLayer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  .lantern {
+    position: absolute;
+    bottom: -28vh;
+    width: min(76vw, 280px);
+    padding: 14px 14px 12px;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background:
+      radial-gradient(120px 90px at 50% 18%, rgba(255,220,160,0.28), rgba(255,220,160,0.0) 70%),
+      linear-gradient(180deg, rgba(22, 12, 30, 0.56), rgba(22, 12, 30, 0.26));
+    box-shadow:
+      0 24px 70px rgba(0,0,0,0.45),
+      0 0 28px rgba(255, 190, 120, 0.16);
+    color: rgba(255,255,255,0.94);
+    letter-spacing: 0.2px;
+    pointer-events: auto;
+    will-change: transform, opacity;
+    transform: translate3d(0, 0, 0);
+    animation: lantern-float var(--dur, 14s) linear forwards;
+  }
+
+  .lantern::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -8px;
+    width: 64px;
+    height: 12px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.10);
+    filter: blur(0.2px);
+    opacity: 0.55;
+  }
+
+  .lantern::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    width: 10px;
+    height: 10px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 35% 35%, rgba(255,255,255,0.95), rgba(255,255,255,0.0) 55%),
+      radial-gradient(circle at 50% 70%, rgba(255,210,120,0.85), rgba(255,120,40,0.0) 70%);
+    box-shadow: 0 0 18px rgba(255,190,110,0.55);
+    opacity: 0.85;
+  }
+
+  .lantern-name {
+    font-weight: 800;
+    font-size: 13px;
+    opacity: 0.92;
+    margin-bottom: 6px;
+  }
+
+  .lantern-msg {
+    font-size: 14px;
+    line-height: 1.35;
+    opacity: 0.96;
+    overflow: hidden;
+    display: -webkit-box;
+    line-clamp: 4;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+  }
+
+  @keyframes lantern-float {
+    0%   { transform: translate3d(var(--x0, 0px), 0, 0) scale(0.98) rotate(-0.6deg); opacity: 0; }
+    8%   { opacity: 1; }
+    100% { transform: translate3d(var(--x1, 0px), -150vh, 0) scale(1.02) rotate(0.8deg); opacity: 0; }
+  }
+
+  #wishFab {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    z-index: 26;
+    pointer-events: auto;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: linear-gradient(180deg, rgba(10, 6, 18, 0.60), rgba(10, 6, 18, 0.28));
+    box-shadow: 0 18px 44px rgba(0,0,0,0.42), inset 0 0 0 1px rgba(255,255,255,0.06);
+    backdrop-filter: blur(10px) saturate(140%);
+    color: rgba(255,255,255,0.96);
+    font-weight: 800;
+    letter-spacing: 0.2px;
+  }
+
+  body.wishes-on #wishFab {
+    display: inline-flex;
+  }
+
+  #wishModal {
+    position: fixed;
+    inset: 0;
+    z-index: 27;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 220ms ease;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+  }
+
+  body.wish-modal #wishModal {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #wishModalBackdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+  }
+
+  #wishModalCard {
+    position: relative;
+    width: min(520px, calc(100vw - 28px));
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: linear-gradient(180deg, rgba(18, 10, 28, 0.92), rgba(18, 10, 28, 0.72));
+    box-shadow: 0 22px 70px rgba(0,0,0,0.52);
+    backdrop-filter: blur(10px) saturate(140%);
+    padding: 14px;
+    color: rgba(255,255,255,0.94);
+  }
+
+  #wishModalCard h3 {
+    font-size: 16px;
+    letter-spacing: 0.2px;
+    margin: 4px 0 10px;
+  }
+
+  .wishField {
+    display: grid;
+    gap: 6px;
+    margin: 10px 0;
+  }
+
+  .wishField label {
+    font-size: 12px;
+    opacity: 0.84;
+  }
+
+  .wishField input,
+  .wishField textarea {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.08);
+    padding: 10px 12px;
+    color: rgba(255,255,255,0.95);
+    outline: none;
+  }
+
+  .wishField textarea { min-height: 92px; resize: none; }
+
+  #wishActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .wishBtn {
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.95);
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-weight: 800;
+  }
+
+  .wishBtn.primary {
+    background: linear-gradient(135deg, rgba(255, 120, 170, 0.86), rgba(150, 120, 255, 0.76));
+    border-color: rgba(255,255,255,0.10);
+  }
+
   /* Cinematic ending overlay */
   #finalOverlay {
     position: fixed;
@@ -719,6 +924,28 @@
 <body>
 <div id="fxOverlay" aria-hidden="true"></div>
 <div id="hud" aria-hidden="true"><div id="hudMessage"></div></div>
+<div id="wishesOverlay" aria-hidden="true">
+  <div id="lanternLayer" aria-hidden="true"></div>
+  <button id="wishFab" type="button" aria-label="Gửi lời chúc">💌 Gửi lời chúc</button>
+  <div id="wishModal" aria-hidden="true">
+    <div id="wishModalBackdrop"></div>
+    <div id="wishModalCard" role="dialog" aria-modal="true" aria-label="Gửi lời chúc">
+      <h3>Gửi lời chúc tới Lan Anh</h3>
+      <div class="wishField">
+        <label for="wishName">Tên (không bắt buộc)</label>
+        <input id="wishName" maxlength="40" placeholder="Ví dụ: Đức Anh" />
+      </div>
+      <div class="wishField">
+        <label for="wishMessage">Lời chúc</label>
+        <textarea id="wishMessage" maxlength="240" placeholder="Viết lời chúc của bạn..."></textarea>
+      </div>
+      <div id="wishActions">
+        <button class="wishBtn" id="wishCancel" type="button">Đóng</button>
+        <button class="wishBtn primary" id="wishSend" type="button">Gửi</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div id="finalOverlay" aria-hidden="true">
   <div id="finalMessageWrap">
     <div id="finalTitle">Hẹn gặp mọi người</div>
@@ -1148,6 +1375,7 @@ let cakeColorTargets = null;
 let cakeCandleTops = null;
 let morphActive = false;
 let morphProgress = 0;
+let cakeDoneDispatched = false;
 const MORPH_DURATION_SEC = 6.5;
 
 // Candle flame mesh
@@ -1406,6 +1634,7 @@ function startCakeMorph() {
   cakeCandleTops = res.candleTops;
   morphActive = true;
   morphProgress = 0;
+  cakeDoneDispatched = false;
   ensureFlames(cakeCandleTops);
   ensureMidBirthdayText();
 }
@@ -1415,21 +1644,205 @@ window.addEventListener('hud:done', () => {
   startCakeMorph();
 });
 
-// Cinematic ending trigger
-let finalScheduled = false;
-const ENDING_DELAY_MS = 10000;
-window.addEventListener('cake:done', () => {
-  if (finalScheduled) return;
-  finalScheduled = true;
+/* ================= WISHES (Concept D: Floating Lanterns) ================= */
+const WISHES_DELAY_AFTER_CAKE_MS = 10000; // cake sits for 10s first
+const WISHES_API_URL = '/api/wishes';
 
-  window.setTimeout(() => {
-    if (fireworksIntervalId) {
-      clearInterval(fireworksIntervalId);
-      fireworksIntervalId = 0;
+let wishesScheduled = false;
+let wishesPlaying = false;
+let finalTriggered = false;
+let wishesTimeouts = [];
+
+function clearWishesTimeouts() {
+  for (const t of wishesTimeouts) clearTimeout(t);
+  wishesTimeouts = [];
+}
+
+function shuffleInPlace(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
+function triggerFinalOverlay() {
+  if (finalTriggered) return;
+  finalTriggered = true;
+
+  if (fireworksIntervalId) {
+    clearInterval(fireworksIntervalId);
+    fireworksIntervalId = 0;
+  }
+
+  document.body.classList.add('final-on');
+}
+
+async function fetchWishes(limit = 30) {
+  const capped = Math.max(1, Math.min(80, limit | 0));
+  const res = await fetch(`${WISHES_API_URL}?limit=${capped}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`fetch wishes failed: ${res.status}`);
+  const data = await res.json();
+  const wishes = Array.isArray(data?.wishes) ? data.wishes : [];
+  return wishes
+    .map(w => ({
+      name: typeof w.name === 'string' ? w.name : '',
+      message: typeof w.message === 'string' ? w.message : ''
+    }))
+    .filter(w => (w.name || w.message));
+}
+
+async function postWish(name, message) {
+  const res = await fetch(WISHES_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, message })
+  });
+  if (!res.ok) throw new Error(`post wish failed: ${res.status}`);
+  return await res.json();
+}
+
+function spawnLantern(wish) {
+  const layer = document.getElementById('lanternLayer');
+  if (!layer) return;
+
+  const lantern = document.createElement('div');
+  lantern.className = 'lantern';
+
+  const safeName = (wish?.name || '').trim();
+  const safeMsg = (wish?.message || '').trim();
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'lantern-name';
+  nameEl.textContent = safeName ? safeName : 'Một người bạn';
+
+  const msgEl = document.createElement('div');
+  msgEl.className = 'lantern-msg';
+  msgEl.textContent = safeMsg || 'Chúc Lan Anh một tuổi mới thật rực rỡ ✨';
+
+  lantern.appendChild(nameEl);
+  lantern.appendChild(msgEl);
+
+  // Placement + drift
+  const left = 8 + Math.random() * 84;
+  const drift0 = (Math.random() - 0.5) * 22;
+  const drift1 = drift0 + (Math.random() - 0.5) * 70;
+  lantern.style.left = `${left}%`;
+  lantern.style.setProperty('--x0', `${drift0}px`);
+  lantern.style.setProperty('--x1', `${drift1}px`);
+
+  const dur = 12 + Math.random() * 8;
+  lantern.style.setProperty('--dur', `${dur}s`);
+
+  layer.appendChild(lantern);
+  lantern.addEventListener('animationend', () => {
+    lantern.remove();
+  }, { once: true });
+}
+
+function setWishModalOpen(open) {
+  document.body.classList.toggle('wish-modal', open);
+  const modal = document.getElementById('wishModal');
+  if (modal) modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+}
+
+function wireWishUI() {
+  const wishFab = document.getElementById('wishFab');
+  const backdrop = document.getElementById('wishModalBackdrop');
+  const cancel = document.getElementById('wishCancel');
+  const send = document.getElementById('wishSend');
+  const nameInput = document.getElementById('wishName');
+  const msgInput = document.getElementById('wishMessage');
+
+  if (!wishFab || !backdrop || !cancel || !send || !nameInput || !msgInput) return;
+
+  wishFab.addEventListener('click', () => setWishModalOpen(true));
+  backdrop.addEventListener('click', () => setWishModalOpen(false));
+  cancel.addEventListener('click', () => setWishModalOpen(false));
+
+  send.addEventListener('click', async () => {
+    const name = String(nameInput.value || '').trim().slice(0, 40);
+    const message = String(msgInput.value || '').trim().slice(0, 240);
+    if (!message) {
+      msgInput.focus();
+      return;
     }
 
-    document.body.classList.add('final-on');
-  }, ENDING_DELAY_MS);
+    const oldText = send.textContent;
+    send.disabled = true;
+    send.textContent = 'Đang gửi...';
+
+    try {
+      await postWish(name, message);
+      setWishModalOpen(false);
+      msgInput.value = '';
+      spawnLantern({ name, message });
+    } catch (e) {
+      console.warn(e);
+      send.textContent = 'Lỗi, thử lại';
+      const t = setTimeout(() => { send.textContent = oldText; }, 1200);
+      wishesTimeouts.push(t);
+    } finally {
+      send.disabled = false;
+    }
+  });
+}
+
+wireWishUI();
+
+async function startWishesSequence() {
+  if (wishesPlaying || finalTriggered) return;
+  wishesPlaying = true;
+  clearWishesTimeouts();
+
+  // Pause fireworks during wishes for a calmer vibe
+  if (fireworksIntervalId) {
+    clearInterval(fireworksIntervalId);
+    fireworksIntervalId = 0;
+  }
+
+  document.body.classList.add('wishes-on');
+
+  let wishes = [];
+  try {
+    wishes = await fetchWishes(36);
+  } catch (e) {
+    console.warn('Wishes API unavailable, continuing without feed.', e);
+  }
+
+  wishes = shuffleInPlace(wishes).slice(0, 26);
+  if (wishes.length === 0) {
+    wishes = [{ name: 'Góc lời chúc', message: 'Bấm “Gửi lời chúc” để gửi điều bạn muốn nói tới Lan Anh nhé ✨' }];
+  }
+
+  const spawnEveryMs = 1150;
+  wishes.forEach((w, idx) => {
+    const t = setTimeout(() => spawnLantern(w), idx * spawnEveryMs);
+    wishesTimeouts.push(t);
+  });
+
+  const totalMs = Math.max(9000, wishes.length * spawnEveryMs + 9000);
+  const doneTimer = setTimeout(() => {
+    document.body.classList.remove('wishes-on');
+    document.body.classList.remove('wish-modal');
+    wishesPlaying = false;
+    triggerFinalOverlay();
+  }, totalMs);
+  wishesTimeouts.push(doneTimer);
+}
+
+window.addEventListener('cake:done', () => {
+  if (wishesScheduled || finalTriggered) return;
+  wishesScheduled = true;
+
+  const t = window.setTimeout(() => {
+    if (!document.body.classList.contains('experience-on')) return;
+    if (document.body.classList.contains('final-on')) return;
+    startWishesSequence().catch(() => triggerFinalOverlay());
+  }, WISHES_DELAY_AFTER_CAKE_MS);
+  wishesTimeouts.push(t);
 });
 
 const heartGeo = new THREE.BufferGeometry();
@@ -2229,6 +2642,7 @@ window.addEventListener('experience:start', () => {
   fireworksIntervalId = window.setInterval(() => {
     if (!document.body.classList.contains('experience-on')) return;
     if (document.body.classList.contains('final-on')) return;
+    if (document.body.classList.contains('wishes-on')) return;
     spawnFireworkNearHeart(0.9);
   }, 2300);
 
@@ -2243,6 +2657,7 @@ document.addEventListener('pointerdown', () => {
   if (!fireworksEnabled) return;
   if (!document.body.classList.contains('experience-on')) return;
   if (document.body.classList.contains('final-on')) return;
+  if (document.body.classList.contains('wishes-on')) return;
   spawnFireworkNearHeart(1.05);
 }, { passive: true });
 
@@ -2308,7 +2723,8 @@ function animate() {
   if (morphActive && cakeTargets) {
     morphProgress = Math.min(1, morphProgress + dt / MORPH_DURATION_SEC);
 
-    if (!finalScheduled && morphProgress >= 1) {
+    if (!cakeDoneDispatched && morphProgress >= 1) {
+      cakeDoneDispatched = true;
       window.dispatchEvent(new Event('cake:done'));
     }
 
