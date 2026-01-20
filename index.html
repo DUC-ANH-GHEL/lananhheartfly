@@ -1781,14 +1781,31 @@ let lanternSlotNextOkMs = new Array(lanternSlotCount).fill(0);
 let lanternFeedTimerId = 0;
 let lanternFeedRunning = false;
 
-const LANTERN_FEED_MIN_INTERVAL_MS = 900;
-const LANTERN_FEED_JITTER_MS = 520;
-const LANTERN_SLOT_MIN_GAP_MS = 6500;
+const LANTERN_FEED_MIN_INTERVAL_MS = 1200;
+const LANTERN_FEED_JITTER_MS = 700;
+const LANTERN_SLOT_MIN_GAP_MS = 10500;
+const LANTERN_AVOID_ADJ_MS = 4200;
+
+let lanternLastSpawnSlot = -1;
+let lanternLastSpawnAtMs = 0;
+
+function getLanternContainerWidth() {
+  const layer = document.getElementById('lanternLayer');
+  if (!layer) return Math.max(320, window.innerWidth || 0);
+  const rect = layer.getBoundingClientRect();
+  return Math.max(320, rect.width || 0);
+}
 
 function recomputeLanternSlots() {
-  const w = Math.max(320, window.innerWidth || 0);
-  // More columns than before to allow a denser (but still non-overlapping) stream.
-  lanternSlotCount = w < 520 ? 5 : (w < 900 ? 7 : 9);
+  const vw = Math.max(320, window.innerWidth || 0);
+  const containerW = getLanternContainerWidth();
+
+  // Choose slot count so that each lantern can actually fit without overlapping.
+  const maxSlots = vw < 520 ? 5 : (vw < 900 ? 6 : 7);
+  const minLanternW = vw < 520 ? 92 : (vw < 900 ? 104 : 112);
+  const minGap = 38;
+  const computed = Math.floor(containerW / Math.max(1, (minLanternW + minGap)));
+  lanternSlotCount = Math.max(3, Math.min(maxSlots, computed || 3));
   lanternSlotCentersPct = [];
   for (let i = 0; i < lanternSlotCount; i++) {
     lanternSlotCentersPct.push(((i + 0.5) / lanternSlotCount) * 100);
@@ -1813,7 +1830,16 @@ function pickSpawnSlot(nowMs) {
   for (let off = 0; off < lanternSlotCount; off++) {
     const idx = (start + off) % lanternSlotCount;
     const okAt = lanternSlotNextOkMs[idx] || 0;
-    if (nowMs >= okAt) return idx;
+    if (nowMs < okAt) continue;
+
+    // Keep adjacent columns from firing back-to-back (looks crowded).
+    if (lanternLastSpawnSlot >= 0) {
+      const tooSoon = (nowMs - (lanternLastSpawnAtMs || 0)) < LANTERN_AVOID_ADJ_MS;
+      const adjacent = Math.abs(idx - lanternLastSpawnSlot) <= 1;
+      if (tooSoon && adjacent) continue;
+    }
+
+    return idx;
   }
   return -1;
 }
@@ -1822,8 +1848,9 @@ function computeLanternWidthPx(containerWidth) {
   const vw = Math.max(320, window.innerWidth || 0);
   const base = vw < 520 ? 164 : (vw < 900 ? 182 : 198);
   const slotW = containerWidth / Math.max(1, lanternSlotCount);
-  const width = Math.min(base, Math.floor(slotW - 14));
-  return Math.max(108, width);
+  // Keep generous gap between columns: lantern takes ~72% of the slot.
+  const maxWidth = Math.max(74, Math.floor(Math.min(slotW * 0.72, slotW - 36)));
+  return Math.min(base, maxWidth);
 }
 
 function clearWishesTimeouts() {
@@ -1992,7 +2019,7 @@ function spawnLantern(wish) {
   lantern.style.setProperty('--w', `${wpx}px`);
   const centerPct = lanternSlotCentersPct[slot] || 50;
   const widthPct = (wpx / containerW) * 100;
-  const leftPct = Math.min(98 - widthPct, Math.max(2, centerPct - widthPct / 2));
+  const leftPct = Math.min(96 - widthPct, Math.max(4, centerPct - widthPct / 2));
   lantern.style.left = `${leftPct}%`;
 
   // Disable drift to keep slots disjoint for the full flight
@@ -2010,6 +2037,8 @@ function spawnLantern(wish) {
 
   // Prevent same-slot lanterns from being too close vertically.
   lanternSlotNextOkMs[slot] = nowMs + LANTERN_SLOT_MIN_GAP_MS + Math.random() * 2200;
+  lanternLastSpawnSlot = slot;
+  lanternLastSpawnAtMs = nowMs;
 
   layer.appendChild(lantern);
   lantern.addEventListener('animationend', () => {
