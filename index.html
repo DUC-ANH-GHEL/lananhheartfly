@@ -22,7 +22,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Playfair+Display:wght@400;600;700&family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -31,6 +31,41 @@
     overflow: hidden;
     background: #000;
     font-family: "Poppins", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
+
+  :root {
+    --paper: #fbfaf7;
+    --paper-2: #f2efe9;
+    --ink: rgba(25, 18, 20, 0.84);
+    --muted: rgba(25, 18, 20, 0.62);
+    --line: rgba(60, 45, 40, 0.18);
+    --shadow: rgba(0, 0, 0, 0.26);
+    --wood1: #d6cdc4;
+    --wood2: #cbbfb4;
+  }
+
+  /* Subtle cinematic post overlay (vignette + grain) */
+  #fxOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    opacity: 0.65;
+    mix-blend-mode: overlay;
+    background:
+      radial-gradient(900px 520px at 50% 45%, rgba(255,255,255,0.06), rgba(255,255,255,0) 60%),
+      radial-gradient(900px 650px at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.25) 62%, rgba(0,0,0,0.62) 100%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0 1px, rgba(255,255,255,0.0) 1px 3px);
+    filter: saturate(118%) contrast(105%);
+  }
+
+  /* Keep the heart/3D scene crisp (reduce overlay while running the experience) */
+  body.experience-on #fxOverlay {
+    opacity: 0.16;
+  }
+
+  body.final-on #fxOverlay {
+    opacity: 0.35;
   }
 
   /* Hide the existing experience until the card is opened */
@@ -53,27 +88,30 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: radial-gradient(1400px 900px at 50% 35%, rgba(255, 120, 190, 0.18), rgba(0, 0, 0, 0.92));
-    backdrop-filter: blur(5px) saturate(120%);
+    background:
+      radial-gradient(1400px 900px at 50% 35%, rgba(0,0,0,0.10), rgba(0,0,0,0.45)),
+      radial-gradient(900px 520px at 50% 45%, rgba(255,255,255,0.10), rgba(255,255,255,0) 60%),
+      repeating-linear-gradient(90deg,
+        rgba(255,255,255,0.06) 0 2px,
+        rgba(0,0,0,0.0) 2px 14px,
+        rgba(0,0,0,0.03) 14px 16px),
+      linear-gradient(180deg, var(--wood1), var(--wood2));
+    backdrop-filter: none;
     -webkit-tap-highlight-color: transparent;
     isolation: isolate;
   }
+
+  /* Paper invitation style: no sparkles */
+  .card-sparkles { display: none; }
 
   .card-overlay::before {
     content: "";
     position: absolute;
     inset: -30%;
-    background:
-      conic-gradient(from 180deg at 50% 50%,
-        rgba(255, 110, 200, 0.00) 0deg,
-        rgba(255, 110, 200, 0.20) 70deg,
-        rgba(140, 120, 255, 0.18) 140deg,
-        rgba(110, 220, 255, 0.12) 210deg,
-        rgba(255, 200, 120, 0.10) 280deg,
-        rgba(255, 110, 200, 0.00) 360deg);
-    filter: blur(55px);
-    opacity: 0.65;
-    animation: aurora-rotate 18s linear infinite;
+    background: radial-gradient(900px 600px at 50% 20%, rgba(255,255,255,0.12), rgba(255,255,255,0) 70%);
+    filter: blur(45px);
+    opacity: 0.22;
+    animation: none;
     z-index: -2;
   }
 
@@ -81,15 +119,10 @@
     content: "";
     position: absolute;
     inset: 0;
-    background:
-      radial-gradient(900px 520px at 15% 75%, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 60%),
-      radial-gradient(700px 420px at 85% 25%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 55%),
-      radial-gradient(2px 2px at 15% 25%, rgba(255,255,255,0.22) 48%, rgba(255,255,255,0) 52%) 0 0 / 120px 120px,
-      radial-gradient(2px 2px at 70% 65%, rgba(255,255,255,0.18) 48%, rgba(255,255,255,0) 52%) 0 0 / 170px 170px,
-      radial-gradient(1px 1px at 35% 55%, rgba(255,255,255,0.15) 48%, rgba(255,255,255,0) 52%) 0 0 / 220px 220px;
-    opacity: 0.55;
-    mix-blend-mode: screen;
-    animation: twinkle-drift 9s ease-in-out infinite;
+    background: radial-gradient(2px 2px at 0 0, rgba(255,255,255,0.08) 48%, rgba(255,255,255,0) 52%) 0 0 / 220px 220px;
+    opacity: 0.18;
+    mix-blend-mode: normal;
+    animation: none;
     z-index: -1;
     pointer-events: none;
   }
@@ -108,19 +141,29 @@
     transform: translateZ(0);
   }
 
+  .card-overlay:not(.open) .card {
+    animation: card-breathe 3.8s ease-in-out infinite;
+  }
+
+  @keyframes card-breathe {
+    0%, 100% { transform: translateZ(0) scale(1); }
+    50% { transform: translateZ(0) scale(1.008); }
+  }
+
   .card-base {
     position: absolute;
     inset: 0;
-    border-radius: 22px;
+    border-radius: 12px;
     overflow: hidden;
     background:
-      linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.08)),
-      radial-gradient(900px 560px at 70% 30%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0)),
-      linear-gradient(135deg, rgba(255, 160, 210, 0.16), rgba(155, 120, 255, 0.14));
-    border: 1px solid rgba(255, 255, 255, 0.18);
+      radial-gradient(1px 1px at 12% 18%, rgba(0,0,0,0.030) 48%, rgba(0,0,0,0) 52%) 0 0 / 26px 26px,
+      radial-gradient(1px 1px at 72% 62%, rgba(0,0,0,0.024) 48%, rgba(0,0,0,0) 52%) 0 0 / 32px 32px,
+      linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.94)),
+      linear-gradient(180deg, var(--paper), var(--paper-2));
+    border: 1px solid var(--line);
     box-shadow:
-      0 18px 50px rgba(0, 0, 0, 0.65),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+      0 18px 50px rgba(0, 0, 0, 0.38),
+      0 2px 0 rgba(255,255,255,0.35) inset;
     transition: opacity 700ms ease;
   }
 
@@ -140,10 +183,10 @@
     top: 0;
     bottom: 0;
     left: 50%;
-    width: 2px;
+    width: 1px;
     transform: translateX(-1px);
-    background: linear-gradient(180deg, rgba(0,0,0,0.0), rgba(0,0,0,0.35), rgba(0,0,0,0.0));
-    opacity: 0.35;
+    background: linear-gradient(180deg, rgba(0,0,0,0.0), rgba(0,0,0,0.25), rgba(0,0,0,0.0));
+    opacity: 0.26;
     pointer-events: none;
   }
 
@@ -152,8 +195,8 @@
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(600px 260px at 25% 25%, rgba(255, 160, 200, 0.18), rgba(255, 160, 200, 0)),
-      radial-gradient(700px 320px at 80% 70%, rgba(170, 130, 255, 0.18), rgba(170, 130, 255, 0));
+      radial-gradient(520px 300px at 18% 18%, rgba(255, 190, 205, 0.18), rgba(255, 190, 205, 0) 65%),
+      radial-gradient(560px 340px at 85% 80%, rgba(185, 210, 190, 0.16), rgba(185, 210, 190, 0) 65%);
     pointer-events: none;
   }
 
@@ -164,7 +207,7 @@
     place-items: center;
     padding: 22px;
     text-align: center;
-    color: rgba(255, 255, 255, 0.92);
+    color: var(--ink);
     transition: opacity 650ms ease, transform 650ms ease;
   }
 
@@ -197,17 +240,18 @@
   }
 
   .inside-left {
-    color: rgba(255,255,255,0.92);
+    color: var(--ink);
   }
 
   .inside-right {
-    color: rgba(255,255,255,0.92);
+    color: var(--ink);
   }
 
   .card-base-title {
+    font-family: "Playfair Display", Georgia, serif;
     font-size: clamp(18px, 3.6vw, 22px);
-    letter-spacing: 0.6px;
-    opacity: 0.9;
+    letter-spacing: 0.2px;
+    opacity: 0.92;
   }
 
   .card-base-sub {
@@ -219,7 +263,7 @@
   .card-cover {
     position: absolute;
     inset: 0;
-    border-radius: 22px;
+    border-radius: 12px;
     transform-style: preserve-3d;
     transform-origin: left center;
     transition: transform 2600ms cubic-bezier(0.16, 1, 0.18, 1);
@@ -230,17 +274,23 @@
     position: absolute;
     inset: 0;
     backface-visibility: hidden;
-    border-radius: 22px;
+    border-radius: 12px;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    border: 1px solid var(--line);
+    --floral: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='240'%20height='240'%20viewBox='0%200%20240%20240'%3E%3Cdefs%3E%3CradialGradient%20id='g'%20cx='50%25'%20cy='50%25'%20r='60%25'%3E%3Cstop%20offset='0'%20stop-color='%23ffb3c7'%20stop-opacity='0.85'/%3E%3Cstop%20offset='1'%20stop-color='%23c39bff'%20stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cg%20opacity='0.95'%3E%3Ccircle%20cx='62'%20cy='72'%20r='18'%20fill='%23d45b7a'%20opacity='0.42'/%3E%3Ccircle%20cx='86'%20cy='56'%20r='22'%20fill='%23f08aa6'%20opacity='0.42'/%3E%3Ccircle%20cx='102'%20cy='82'%20r='20'%20fill='%23b56bd6'%20opacity='0.25'/%3E%3Ccircle%20cx='74'%20cy='98'%20r='28'%20fill='url(%23g)'/%3E%3Cpath%20d='M132%20122c22-26%2050-30%2068-18'%20stroke='%2383a871'%20stroke-width='4'%20fill='none'%20opacity='0.55'/%3E%3Cpath%20d='M122%20154c28-18%2058-18%2084-6'%20stroke='%2383a871'%20stroke-width='4'%20fill='none'%20opacity='0.42'/%3E%3Cellipse%20cx='162'%20cy='118'%20rx='13'%20ry='7'%20fill='%2396c37a'%20opacity='0.48'%20transform='rotate(-22%20162%20118)'/%3E%3Cellipse%20cx='184'%20cy='146'%20rx='15'%20ry='8'%20fill='%2396c37a'%20opacity='0.48'%20transform='rotate(18%20184%20146)'/%3E%3C/g%3E%3C/svg%3E");
     background:
-      linear-gradient(180deg, rgba(20,10,30,0.28), rgba(20,10,30,0.10)),
-      radial-gradient(920px 560px at 25% 20%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 62%),
-      radial-gradient(700px 420px at 82% 78%, rgba(255, 170, 220, 0.16), rgba(255, 170, 220, 0) 58%),
-      linear-gradient(135deg, rgba(255, 140, 210, 0.62), rgba(120, 90, 255, 0.38));
+      radial-gradient(1px 1px at 12% 18%, rgba(0,0,0,0.028) 48%, rgba(0,0,0,0) 52%) 0 0 / 26px 26px,
+      radial-gradient(1px 1px at 72% 62%, rgba(0,0,0,0.022) 48%, rgba(0,0,0,0) 52%) 0 0 / 32px 32px,
+      var(--floral),
+      var(--floral),
+      linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.94)),
+      linear-gradient(180deg, var(--paper), var(--paper-2));
+    background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+    background-size: auto, auto, 240px 240px, 240px 240px, auto, auto;
+    background-position: 0 0, 0 0, -28px -28px, calc(100% + 28px) calc(100% + 28px), 0 0, 0 0;
     box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-      inset 0 -40px 120px rgba(0,0,0,0.22);
+      inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+      inset 0 -60px 120px rgba(0,0,0,0.06);
   }
 
   .card-cover-face::before {
@@ -248,10 +298,9 @@
     position: absolute;
     inset: -40px;
     background:
-      radial-gradient(3px 3px at 20% 30%, rgba(255,255,255,0.26) 45%, rgba(255,255,255,0) 48%) 0 0 / 30px 30px,
-      radial-gradient(2px 2px at 70% 60%, rgba(255,255,255,0.18) 45%, rgba(255,255,255,0) 48%) 0 0 / 44px 44px,
-      linear-gradient(120deg, rgba(255,255,255,0.0), rgba(255,255,255,0.12), rgba(255,255,255,0.0));
-    opacity: 0.7;
+      radial-gradient(700px 420px at 50% 30%, rgba(0,0,0,0.03), rgba(0,0,0,0) 70%),
+      linear-gradient(120deg, rgba(255,255,255,0.0), rgba(255,255,255,0.14), rgba(255,255,255,0.0));
+    opacity: 0.55;
     transform: translateX(-20%);
     animation: shimmer-sweep 4.8s ease-in-out infinite;
     pointer-events: none;
@@ -262,11 +311,10 @@
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(900px 520px at 50% 0%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 65%),
-      radial-gradient(2px 2px at 12% 18%, rgba(255,255,255,0.26) 45%, rgba(255,255,255,0) 48%) 0 0 / 160px 160px,
-      radial-gradient(2px 2px at 80% 58%, rgba(255,255,255,0.22) 45%, rgba(255,255,255,0) 48%) 0 0 / 220px 220px;
-    mix-blend-mode: screen;
-    opacity: 0.6;
+      radial-gradient(900px 520px at 50% 0%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 65%),
+      linear-gradient(180deg, rgba(0,0,0,0.0), rgba(0,0,0,0.05));
+    mix-blend-mode: normal;
+    opacity: 0.45;
     pointer-events: none;
   }
 
@@ -278,15 +326,43 @@
   }
 
   .cover-content {
-    width: min(520px, 92%);
-    padding: 22px 20px;
-    border-radius: 18px;
-    background: linear-gradient(180deg, rgba(20,10,30,0.28), rgba(20,10,30,0.10));
-    border: 1px solid rgba(255,255,255,0.16);
+    width: min(560px, 90%);
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .cover-frame {
+    width: 100%;
+    max-width: 540px;
+    margin: 0 auto;
+    padding: clamp(18px, 3.8vw, 28px) clamp(16px, 3.6vw, 26px);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.78);
+    border: 2px solid rgba(60, 45, 40, 0.22);
     box-shadow:
-      0 18px 44px rgba(0,0,0,0.32),
-      inset 0 0 0 1px rgba(255,255,255,0.06);
-    backdrop-filter: blur(10px) saturate(125%);
+      0 18px 38px rgba(0,0,0,0.18),
+      inset 0 0 0 1px rgba(255,255,255,0.55);
+    backdrop-filter: blur(4px);
+  }
+
+  .frame-kicker {
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: clamp(12px, 2.8vw, 14px);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .frame-divider {
+    width: 64px;
+    height: 1px;
+    margin: 12px auto 12px;
+    background: rgba(60, 45, 40, 0.22);
+    opacity: 0.9;
   }
 
   .cover-content .invite-title {
@@ -294,17 +370,17 @@
   }
 
   .cover-content .invite-name {
-    line-height: 1.05;
+    line-height: 1.18;
   }
 
   .cover-badge {
-    display: inline-flex;
+    display: none;
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
     border-radius: 999px;
     border: 1px solid rgba(255,255,255,0.20);
-    background: rgba(0,0,0,0.16);
+    background: rgba(0,0,0,0.14);
     box-shadow:
       0 14px 34px rgba(0,0,0,0.28),
       inset 0 0 0 1px rgba(255,255,255,0.06);
@@ -321,37 +397,41 @@
   }
 
   .invite-title {
+    margin-top: 8px;
+    font-family: "Playfair Display", Georgia, serif;
     font-size: clamp(18px, 4.2vw, 26px);
-    font-weight: 700;
-    letter-spacing: 1px;
-    color: rgba(255, 255, 255, 0.95);
-    text-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    color: rgba(25, 18, 20, 0.78);
+    text-shadow: none;
   }
 
   .invite-name {
     margin-top: 10px;
+    padding-top: 6px;
+    display: inline-block;
+    line-height: 1.18;
     font-family: "Great Vibes", cursive;
-    font-size: clamp(38px, 8vw, 74px);
+    font-size: clamp(42px, 9vw, 86px);
     font-weight: 400;
     letter-spacing: 0.5px;
-    background: linear-gradient(90deg, rgba(255,240,248,0.98), rgba(255,180,222,0.96), rgba(200,190,255,0.96));
+    background: linear-gradient(90deg, rgba(60, 40, 50, 0.88), rgba(130, 80, 120, 0.80), rgba(60, 40, 50, 0.86));
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    text-shadow:
-      0 0 14px rgba(255, 130, 190, 0.55),
-      0 0 34px rgba(160, 120, 255, 0.35);
+    text-shadow: 0 16px 34px rgba(0,0,0,0.18);
   }
 
   .invite-hint {
-    margin-top: 14px;
+    margin-top: 16px;
     font-size: clamp(12px, 3.2vw, 14px);
-    opacity: 0.86;
+    color: var(--muted);
+    opacity: 1;
   }
 
   .invite-hint strong {
     font-weight: 700;
-    color: rgba(255,255,255,0.95);
+    color: rgba(25, 18, 20, 0.72);
   }
 
   .invite-hint kbd {
@@ -390,6 +470,26 @@
     0% { transform: translateX(-25%); opacity: 0.45; }
     50% { transform: translateX(25%); opacity: 0.85; }
     100% { transform: translateX(-25%); opacity: 0.45; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card-overlay::before,
+    .card-overlay::after,
+    .card-cover-face::before,
+    .card-overlay:not(.open) .card,
+    #finalTitle {
+      animation: none !important;
+    }
+    .card-cover,
+    .card-base,
+    .card-base-content,
+    #hudMessage,
+    #finalOverlay,
+    #finalMessageWrap,
+    canvas,
+    #text {
+      transition-duration: 1ms !important;
+    }
   }
 
   #text {
@@ -539,6 +639,7 @@
 </head>
 
 <body>
+<div id="fxOverlay" aria-hidden="true"></div>
 <div id="hud" aria-hidden="true"><div id="hudMessage"></div></div>
 <div id="finalOverlay" aria-hidden="true">
   <div id="finalMessageWrap">
@@ -570,11 +671,13 @@
     <div class="card-cover" aria-hidden="true">
       <div class="card-cover-face card-cover-front">
         <div class="cover-content">
-          <div class="cover-badge" aria-hidden="true"><span class="badge-dot"></span><span style="opacity:.92">Invitation</span></div>
-          <div style="height: 14px"></div>
-          <div class="invite-title">Thiệp mời sinh nhật</div>
-          <div class="invite-name">Lan Anh</div>
-          <div class="invite-hint"><strong>Click / chạm</strong> để mở </div>
+          <div class="cover-frame">
+            <div class="frame-kicker">Thiệp mời</div>
+            <div class="frame-divider" aria-hidden="true"></div>
+            <div class="invite-title">Sinh nhật</div>
+            <div class="invite-name">Lan Anh</div>
+            <div class="invite-hint">Click / chạm để mở</div>
+          </div>
         </div>
       </div>
     </div>
@@ -590,6 +693,53 @@
   const overlay = document.getElementById('cardOverlay');
   const bgMusic = document.getElementById('bgMusic');
   if (!overlay) return;
+
+  // Subtle tilt/parallax on pointer move
+  (function initTilt() {
+    const card = overlay.querySelector('.card');
+    if (!card) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let targetRx = 0;
+    let targetRy = 0;
+    let rafId = 0;
+
+    function tick() {
+      rafId = 0;
+      // Reduce tilt once opened
+      const tiltScale = overlay.classList.contains('open') ? 0.45 : 1;
+      const rx = targetRx * tiltScale;
+      const ry = targetRy * tiltScale;
+      card.style.transform = `translateZ(0) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
+    }
+
+    function schedule() {
+      if (rafId) return;
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function onMove(e) {
+      const rect = overlay.getBoundingClientRect();
+      const px = (e.clientX - rect.left) / rect.width;
+      const py = (e.clientY - rect.top) / rect.height;
+      const nx = (px - 0.5);
+      const ny = (py - 0.5);
+
+      targetRy = nx * -10;
+      targetRx = ny * 8;
+      schedule();
+    }
+
+    function reset() {
+      targetRx = 0;
+      targetRy = 0;
+      schedule();
+    }
+
+    overlay.addEventListener('pointermove', onMove, { passive: true });
+    overlay.addEventListener('pointerleave', reset, { passive: true });
+    overlay.addEventListener('pointerdown', reset, { passive: true });
+  })();
 
   // Timing: make the overlay fully disappear ~5s after user opens the card.
   // Total = HIDE_DELAY_MS + OVERLAY_FADE_MS
@@ -735,9 +885,52 @@ const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerH
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setClearColor(0x000000);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
+renderer.setClearColor(0x000000, 1);
+
+// Color output (Three r124)
+renderer.outputEncoding = THREE.sRGBEncoding;
 document.body.appendChild(renderer.domElement);
+
+// Keep the scene crisp: no fog / filmic tone mapping
+scene.fog = null;
+
+// Starfield backdrop
+const starGeo = new THREE.BufferGeometry();
+const STAR_COUNT = 1200;
+const starPos = new Float32Array(STAR_COUNT * 3);
+const starCol = new Float32Array(STAR_COUNT * 3);
+for (let i = 0; i < STAR_COUNT; i++) {
+  const idx = i * 3;
+  const u = Math.random();
+  const v = Math.random();
+  const theta = 2 * Math.PI * u;
+  const phi = Math.acos(2 * v - 1);
+  const radius = 240 + Math.random() * 260;
+  starPos[idx] = Math.sin(phi) * Math.cos(theta) * radius;
+  starPos[idx + 1] = Math.cos(phi) * radius;
+  starPos[idx + 2] = Math.sin(phi) * Math.sin(theta) * radius;
+
+  const c = new THREE.Color().setHSL(0.62 + Math.random() * 0.08, 0.25 + Math.random() * 0.25, 0.70 + Math.random() * 0.25);
+  starCol[idx] = c.r;
+  starCol[idx + 1] = c.g;
+  starCol[idx + 2] = c.b;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+starGeo.setAttribute('color', new THREE.BufferAttribute(starCol, 3));
+
+const starMat = new THREE.PointsMaterial({
+  size: 0.9,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.28,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+
+const starMesh = new THREE.Points(starGeo, starMat);
+starMesh.renderOrder = -10;
+scene.add(starMesh);
 
 /* ================= HEART GROUP ================= */
 const heartGroup = new THREE.Group();
@@ -748,6 +941,7 @@ function updateCamera() {
   const aspect = window.innerWidth / window.innerHeight;
   camera.position.z = aspect < 1 ? 75 / aspect * 0.7 : 60;
   heartGroup.position.y = aspect < 1 ? 8 : 10;
+  camera.lookAt(0, heartGroup.position.y, 0);
 }
 updateCamera();
 
@@ -769,6 +963,20 @@ gradient.addColorStop(1, 'rgba(255,50,100,0)');
 glowCtx.fillStyle = gradient;
 glowCtx.fillRect(0, 0, 64, 64);
 const glowTexture = new THREE.CanvasTexture(glowCanvas);
+
+// Stronger glow for the heart only (keeps other particles unchanged)
+const heartGlowCanvas = document.createElement('canvas');
+heartGlowCanvas.width = 64;
+heartGlowCanvas.height = 64;
+const heartGlowCtx = heartGlowCanvas.getContext('2d');
+const heartGradient = heartGlowCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+heartGradient.addColorStop(0, 'rgba(255,255,255,1)');
+heartGradient.addColorStop(0.22, 'rgba(255,120,160,0.95)');
+heartGradient.addColorStop(0.55, 'rgba(255,70,130,0.62)');
+heartGradient.addColorStop(1, 'rgba(255,50,100,0)');
+heartGlowCtx.fillStyle = heartGradient;
+heartGlowCtx.fillRect(0, 0, 64, 64);
+const heartGlowTexture = new THREE.CanvasTexture(heartGlowCanvas);
 
 /* ================= HEART MATH ================= */
 function heartShape(t, scale = 1) {
@@ -851,11 +1059,11 @@ for (let i = 0; i < CONFIG.heartParticles; i++) {
   heartArrived.push(false);
   heartDelays.push(0);
   
-  // Gradient color: đỏ hồng đẹp
+  // Gradient color: đỏ đậm (giảm hồng) để tim/bánh rõ hơn
   const normalizedY = (target.y + 15) / 30;
-  heartColors[i * 3] = 0.85 + Math.random() * 0.15;
-  heartColors[i * 3 + 1] = 0.15 + normalizedY * 0.25 + Math.random() * 0.1;
-  heartColors[i * 3 + 2] = 0.35 + normalizedY * 0.2 + Math.random() * 0.15;
+  heartColors[i * 3] = 0.92 + Math.random() * 0.08;
+  heartColors[i * 3 + 1] = 0.04 + normalizedY * 0.07 + Math.random() * 0.03;
+  heartColors[i * 3 + 2] = 0.06 + normalizedY * 0.09 + Math.random() * 0.04;
 }
 
 function smoothstep(t) {
@@ -889,8 +1097,8 @@ function generateCakeTargets(count) {
     const y = baseY + Math.random() * cakeHeight;
     targets[write] = new THREE.Vector3(x, y, z);
 
-    // Pink cake body
-    const c = new THREE.Color().setHSL(0.95 + Math.random() * 0.03, 0.55 + Math.random() * 0.2, 0.62 + Math.random() * 0.12);
+    // Deep red cake body (less pink)
+    const c = new THREE.Color().setHSL(0.0 + Math.random() * 0.01, 0.88 + Math.random() * 0.1, 0.38 + Math.random() * 0.12);
     colors[write * 3] = c.r;
     colors[write * 3 + 1] = c.g;
     colors[write * 3 + 2] = c.b;
@@ -933,9 +1141,8 @@ function generateCakeTargets(count) {
     const y = candle.y + Math.random() * candleHeight;
     targets[write] = new THREE.Vector3(x, y, z);
 
-    // Pastel candle colors
-    const hue = (0.55 + (i % candlePositions.length) * 0.08 + Math.random() * 0.03) % 1;
-    const ccol = new THREE.Color().setHSL(hue, 0.55, 0.78);
+    // Candle colors: warm ivory so flame reads clearer on red cake
+    const ccol = new THREE.Color().setHSL(0.12 + Math.random() * 0.03, 0.25 + Math.random() * 0.08, 0.85 + Math.random() * 0.06);
     colors[write * 3] = ccol.r;
     colors[write * 3 + 1] = ccol.g;
     colors[write * 3 + 2] = ccol.b;
@@ -990,9 +1197,9 @@ function ensureFlames(candleTops) {
 
     flamePhase[i] = Math.random() * Math.PI * 2;
 
-    // orange/yellow flame gradient
+    // orange/yellow flame gradient (brighter for clarity)
     const t = Math.random();
-    const c = new THREE.Color().setHSL(0.08 + t * 0.06, 0.95, 0.62 + t * 0.2);
+    const c = new THREE.Color().setHSL(0.07 + t * 0.06, 1.0, 0.72 + t * 0.22);
     flameCol[idx] = c.r;
     flameCol[idx + 1] = c.g;
     flameCol[idx + 2] = c.b;
@@ -1004,7 +1211,7 @@ function ensureFlames(candleTops) {
 
   const flameMat = new THREE.PointsMaterial({
     map: glowTexture,
-    size: 1.15,
+    size: 1.32,
     vertexColors: true,
     transparent: true,
     opacity: 0,
@@ -1118,11 +1325,12 @@ heartGeo.setAttribute('position', new THREE.BufferAttribute(heartPositions, 3));
 heartGeo.setAttribute('color', new THREE.BufferAttribute(heartColors, 3));
 
 const heartMat = new THREE.PointsMaterial({
-  map: glowTexture,
+  map: heartGlowTexture,
   size: CONFIG.particleSize,
   vertexColors: true,
   transparent: true,
-  opacity: 0.9,
+  opacity: 1.0,
+  alphaTest: 0.02,
   blending: THREE.AdditiveBlending,
   depthWrite: false
 });
@@ -1220,6 +1428,8 @@ imgElement.onload = function() {
   tempCanvas.width = size;
   tempCanvas.height = size;
   const tempCtx = tempCanvas.getContext('2d');
+  tempCtx.imageSmoothingEnabled = true;
+  try { tempCtx.imageSmoothingQuality = 'high'; } catch (e) {}
   
   // Vẽ ảnh trước
   const heartWidth = 32 * scale;
@@ -1235,28 +1445,40 @@ imgElement.onload = function() {
   maskCanvas.width = size;
   maskCanvas.height = size;
   const maskCtx = maskCanvas.getContext('2d');
+  maskCtx.imageSmoothingEnabled = true;
+  try { maskCtx.imageSmoothingQuality = 'high'; } catch (e) {}
   
   // Vẽ trái tim với blur effect bằng shadow
   maskCtx.shadowColor = 'white';
-  maskCtx.shadowBlur = 15; // Độ mềm viền
+  maskCtx.shadowBlur = 8; // Viền bớt mềm để ảnh sắc và đậm hơn
   maskCtx.shadowOffsetX = 0;
   maskCtx.shadowOffsetY = 0;
   maskCtx.fillStyle = 'white';
-  drawHeartPath(maskCtx, scale * 0.92, offsetX, offsetY); // Nhỏ hơn một chút
+  drawHeartPath(maskCtx, scale * 0.95, offsetX, offsetY);
   maskCtx.fill();
   
   // Vẽ lại không shadow để có core rõ
   maskCtx.shadowBlur = 0;
-  drawHeartPath(maskCtx, scale * 0.88, offsetX, offsetY);
+  drawHeartPath(maskCtx, scale * 0.92, offsetX, offsetY);
   maskCtx.fill();
   
   // Apply mask lên ảnh
+  ctx.imageSmoothingEnabled = true;
+  try { ctx.imageSmoothingQuality = 'high'; } catch (e) {}
   ctx.drawImage(tempCanvas, 0, 0);
   ctx.globalCompositeOperation = 'destination-in';
   ctx.drawImage(maskCanvas, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
   
   // Tạo texture từ canvas
   const maskedTexture = new THREE.CanvasTexture(canvas);
+  maskedTexture.encoding = THREE.sRGBEncoding;
+  maskedTexture.generateMipmaps = true;
+  maskedTexture.minFilter = THREE.LinearMipMapLinearFilter;
+  maskedTexture.magFilter = THREE.LinearFilter;
+  maskedTexture.anisotropy = (renderer.capabilities && renderer.capabilities.getMaxAnisotropy)
+    ? renderer.capabilities.getMaxAnisotropy()
+    : 1;
   maskedTexture.needsUpdate = true;
   
   const imageMat = new THREE.SpriteMaterial({
@@ -1930,6 +2152,12 @@ function animate() {
   const dt = Math.min(0.05, Math.max(0.0, time - lastFrameTime));
   lastFrameTime = time;
 
+  // Subtle ambient motion (camera + stars)
+  if (starMesh) {
+    starMesh.rotation.y += dt * 0.02;
+    starMesh.rotation.x += dt * 0.007;
+  }
+
   // Fireworks update
   for (let fi = fireworks.length - 1; fi >= 0; fi--) {
     const fw = fireworks[fi];
@@ -2086,8 +2314,8 @@ function animate() {
       arr[idx + 2] = flameBase[idx + 2] + Math.cos(time * 6.0 + flamePhase[i]) * 0.06;
     }
     flameMesh.geometry.attributes.position.needsUpdate = true;
-    flameMesh.material.opacity = 0.95 * showFlame;
-    flameMesh.material.size = 1.0 + Math.sin(time * 7.5) * 0.15;
+    flameMesh.material.opacity = 1.0 * showFlame;
+    flameMesh.material.size = 1.18 + Math.sin(time * 7.5) * 0.22;
   }
   
   // Floating particles bay lên
