@@ -1162,8 +1162,7 @@
 { html: 'Tuổi mới thêm nhiều niềm vui và thành công 🍀', ms: 7000 },
 { html: 'Luôn được yêu thương và trân trọng ❤️', ms: 7000 },
 { html: 'Mọi điều mong ước đều sớm thành hiện thực ✨', ms: 7000 },
-{ html: 'Chúc Lan Anh có một năm mới thật rực rỡ 💖', ms: 7000 },
-{ html: 'Chạm / click bất kỳ để bắn pháo hoa 🎆', ms: 10000 },
+{ html: 'Chúc Lan Anh có một năm mới thật rực rỡ 💖', ms: 7000 }
 
   ];
 
@@ -1646,6 +1645,7 @@ window.addEventListener('hud:done', () => {
 
 /* ================= WISHES (Concept D: Floating Lanterns) ================= */
 const WISHES_DELAY_AFTER_CAKE_MS = 10000; // cake sits for 10s first
+const WISHES_MIN_DURATION_MS = 60000; // keep wishes up at least 60s before ending
 const WISHES_API_URL = '/api/wishes';
 
 let wishesScheduled = false;
@@ -1653,9 +1653,62 @@ let wishesPlaying = false;
 let finalTriggered = false;
 let wishesTimeouts = [];
 
+let wishesEndAtMs = 0;
+let wishesDoneTimerId = 0;
+let wishesRemainingMs = 0;
+let wishesPaused = false;
+
 function clearWishesTimeouts() {
   for (const t of wishesTimeouts) clearTimeout(t);
   wishesTimeouts = [];
+  wishesDoneTimerId = 0;
+  wishesEndAtMs = 0;
+  wishesRemainingMs = 0;
+  wishesPaused = false;
+}
+
+function finishWishesThenFinal() {
+  document.body.classList.remove('wishes-on');
+  document.body.classList.remove('wish-modal');
+  wishesPlaying = false;
+  triggerFinalOverlay();
+}
+
+function scheduleWishesEnd(ms) {
+  if (wishesDoneTimerId) clearTimeout(wishesDoneTimerId);
+  wishesRemainingMs = Math.max(0, ms | 0);
+  wishesEndAtMs = Date.now() + wishesRemainingMs;
+  wishesPaused = false;
+
+  wishesDoneTimerId = window.setTimeout(() => {
+    // Never end while user is typing in the modal
+    if (document.body.classList.contains('wish-modal')) {
+      wishesRemainingMs = Math.max(0, wishesEndAtMs - Date.now());
+      wishesPaused = true;
+      wishesDoneTimerId = 0;
+      return;
+    }
+    finishWishesThenFinal();
+  }, wishesRemainingMs);
+  wishesTimeouts.push(wishesDoneTimerId);
+}
+
+function pauseWishesEndTimer() {
+  if (!wishesPlaying) return;
+  if (wishesPaused) return;
+  if (!wishesDoneTimerId) return;
+  clearTimeout(wishesDoneTimerId);
+  wishesDoneTimerId = 0;
+  wishesRemainingMs = Math.max(0, wishesEndAtMs - Date.now());
+  wishesPaused = true;
+}
+
+function resumeWishesEndTimer() {
+  if (!wishesPlaying) return;
+  if (!wishesPaused) return;
+  wishesEndAtMs = Date.now() + wishesRemainingMs;
+  wishesPaused = false;
+  scheduleWishesEnd(wishesRemainingMs);
 }
 
 function shuffleInPlace(arr) {
@@ -1746,6 +1799,9 @@ function setWishModalOpen(open) {
   document.body.classList.toggle('wish-modal', open);
   const modal = document.getElementById('wishModal');
   if (modal) modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+
+  if (open) pauseWishesEndTimer();
+  else resumeWishesEndTimer();
 }
 
 function wireWishUI() {
@@ -1823,14 +1879,8 @@ async function startWishesSequence() {
     wishesTimeouts.push(t);
   });
 
-  const totalMs = Math.max(9000, wishes.length * spawnEveryMs + 9000);
-  const doneTimer = setTimeout(() => {
-    document.body.classList.remove('wishes-on');
-    document.body.classList.remove('wish-modal');
-    wishesPlaying = false;
-    triggerFinalOverlay();
-  }, totalMs);
-  wishesTimeouts.push(doneTimer);
+  const totalMs = Math.max(WISHES_MIN_DURATION_MS, wishes.length * spawnEveryMs + 9000);
+  scheduleWishesEnd(totalMs);
 }
 
 window.addEventListener('cake:done', () => {
