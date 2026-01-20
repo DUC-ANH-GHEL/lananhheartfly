@@ -44,6 +44,14 @@ async function ensureSchema(sql) {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS wishes_created_at_idx ON wishes (created_at DESC);`;
+
+  // Helpful for Vercel logs: confirms schema ran and which DB/schema it hit.
+  try {
+    const info = await sql`SELECT current_database() AS db, current_schema() AS schema;`;
+    console.log('[wishes] schema ensured', info[0]);
+  } catch (_) {
+    // ignore logging failures
+  }
 }
 
 function safeText(v, maxLen) {
@@ -61,9 +69,29 @@ module.exports = async (req, res) => {
     return;
   }
 
+  let sql;
   try {
-    const sql = getSql();
+    sql = getSql();
     await ensureSchema(sql);
+
+    // Optional: quick health check for deployment/debugging
+    if (req.method === 'GET' && req.query && (req.query.ping === '1' || req.query.ping === 'true')) {
+      const info = await sql`SELECT current_database() AS db, current_schema() AS schema;`;
+      const tbl = await sql`
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = current_schema()
+            AND table_name = 'wishes'
+        ) AS exists;
+      `;
+      const count = await sql`SELECT COUNT(*)::int AS count FROM wishes;`;
+
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.statusCode = 200;
+      res.end(JSON.stringify({ ok: true, db: info[0]?.db, schema: info[0]?.schema, wishesTable: !!tbl[0]?.exists, count: count[0]?.count }));
+      return;
+    }
 
     if (req.method === 'GET') {
       const limitRaw = (req.query && req.query.limit) || '30';
@@ -79,7 +107,6 @@ module.exports = async (req, res) => {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.statusCode = 200;
       res.end(JSON.stringify({ wishes: rows }));
-      await sql.end({ timeout: 1 });
       return;
     }
 
@@ -92,7 +119,6 @@ module.exports = async (req, res) => {
         res.statusCode = 400;
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.end(JSON.stringify({ error: 'Message is required' }));
-        await sql.end({ timeout: 1 });
         return;
       }
 
@@ -105,7 +131,6 @@ module.exports = async (req, res) => {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.statusCode = 201;
       res.end(JSON.stringify({ wish: inserted[0] }));
-      await sql.end({ timeout: 1 });
       return;
     }
 
@@ -117,5 +142,9 @@ module.exports = async (req, res) => {
     res.statusCode = status;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify({ error: 'Server error', detail: String(e && e.message ? e.message : e) }));
+  } finally {
+    if (sql) {
+      try { await sql.end({ timeout: 1 }); } catch (_) { /* ignore */ }
+    }
   }
 };
