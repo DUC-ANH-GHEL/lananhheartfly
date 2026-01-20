@@ -44,6 +44,7 @@ async function ensureSchema(sql) {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS wishes_created_at_idx ON wishes (created_at DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS wishes_created_at_id_idx ON wishes (created_at DESC, id DESC);`;
 
   // Helpful for Vercel logs: confirms schema ran and which DB/schema it hit.
   try {
@@ -52,6 +53,28 @@ async function ensureSchema(sql) {
   } catch (_) {
     // ignore logging failures
   }
+}
+
+function encodeCursor(row) {
+  if (!row || !row.created_at || row.id == null) return null;
+  const raw = `${new Date(row.created_at).toISOString()}|${String(row.id)}`;
+  return Buffer.from(raw, 'utf8').toString('base64');
+}
+
+function decodeCursor(cursor) {
+  if (!cursor || typeof cursor !== 'string') return null;
+  let raw;
+  try {
+    raw = Buffer.from(cursor, 'base64').toString('utf8');
+  } catch {
+    return null;
+  }
+  const [iso, idStr] = raw.split('|');
+  if (!iso || !idStr) return null;
+  const date = new Date(iso);
+  const id = Number(idStr);
+  if (!Number.isFinite(id) || Number.isNaN(date.getTime())) return null;
+  return { createdAt: date.toISOString(), id };
 }
 
 function safeText(v, maxLen) {
@@ -95,18 +118,35 @@ module.exports = async (req, res) => {
 
     if (req.method === 'GET') {
       const limitRaw = (req.query && req.query.limit) || '30';
-      const limit = Math.max(1, Math.min(500, parseInt(limitRaw, 10) || 30));
+      const limit = Math.max(1, Math.min(200, parseInt(limitRaw, 10) || 30));
 
-      const rows = await sql`
-        SELECT id, name, message, created_at
-        FROM wishes
-        ORDER BY created_at DESC
-        LIMIT ${limit}
-      `;
+      const cursorRaw = req.query && (req.query.cursor || req.query.before);
+      const cursor = decodeCursor(cursorRaw);
+
+      let rows;
+      if (cursor) {
+        rows = await sql`
+          SELECT id, name, message, created_at
+          FROM wishes
+          WHERE (created_at, id) < (${cursor.createdAt}::timestamptz, ${cursor.id}::bigint)
+          ORDER BY created_at DESC, id DESC
+          LIMIT ${limit}
+        `;
+      } else {
+        rows = await sql`
+          SELECT id, name, message, created_at
+          FROM wishes
+          ORDER BY created_at DESC, id DESC
+          LIMIT ${limit}
+        `;
+      }
+
+      const nextCursor = rows.length ? encodeCursor(rows[rows.length - 1]) : null;
+      const hasMore = rows.length === limit;
 
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.statusCode = 200;
-      res.end(JSON.stringify({ wishes: rows }));
+      res.end(JSON.stringify({ wishes: rows, nextCursor, hasMore }));
       return;
     }
 

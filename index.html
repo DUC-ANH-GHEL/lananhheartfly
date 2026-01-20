@@ -650,21 +650,28 @@
     padding: 34px 16px 42px;
     border-radius: 120px;
     overflow: hidden;
-    border: 1px solid rgba(255, 230, 220, 0.30);
+    border: 1px solid rgba(255, 235, 230, 0.40);
     background:
-      radial-gradient(120px 96px at 50% 52%, rgba(255, 246, 220, 0.72), rgba(255, 246, 220, 0.0) 74%),
-      radial-gradient(120px 70px at 50% 92%, rgba(255, 175, 130, 0.28), rgba(255, 175, 130, 0.0) 75%),
-      repeating-linear-gradient(90deg, rgba(255,255,255,0.16) 0 5px, rgba(0,0,0,0) 5px 16px),
-      linear-gradient(180deg, rgba(255, 62, 98, 0.88), rgba(120, 12, 62, 0.64));
+      /* 3D rim + specular highlight */
+      radial-gradient(140px 110px at 35% 26%, rgba(255,255,255,0.38), rgba(255,255,255,0.0) 66%),
+      radial-gradient(120px 96px at 50% 52%, rgba(255, 248, 230, 0.92), rgba(255, 246, 220, 0.0) 74%),
+      radial-gradient(130px 78px at 50% 92%, rgba(255, 195, 150, 0.34), rgba(255, 175, 130, 0.0) 75%),
+      /* subtle paper ribs */
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.10) 0 4px, rgba(0,0,0,0) 4px 18px),
+      /* side shading for volume */
+      linear-gradient(90deg, rgba(0,0,0,0.16), rgba(0,0,0,0.0) 22%, rgba(0,0,0,0.0) 78%, rgba(0,0,0,0.18)),
+      /* main body */
+      linear-gradient(180deg, rgba(255, 62, 110, 0.96), rgba(120, 10, 70, 0.82));
     box-shadow:
-      0 30px 74px rgba(0,0,0,0.48),
-      0 0 46px rgba(255, 170, 120, 0.22),
-      inset 0 14px 30px rgba(255, 240, 220, 0.12),
-      inset 0 -22px 34px rgba(0, 0, 0, 0.20);
-    filter: drop-shadow(0 0 10px rgba(255, 190, 140, 0.18));
-    color: rgba(255,255,255,0.96);
+      0 34px 86px rgba(0,0,0,0.52),
+      0 0 58px rgba(255, 170, 120, 0.26),
+      0 0 22px rgba(255, 120, 170, 0.18),
+      inset 0 16px 34px rgba(255, 240, 220, 0.16),
+      inset 0 -26px 40px rgba(0, 0, 0, 0.22);
+    filter: drop-shadow(0 0 14px rgba(255, 200, 160, 0.22));
+    color: rgba(255,255,255,0.98);
     letter-spacing: 0.2px;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.40);
+    text-shadow: 0 3px 14px rgba(0,0,0,0.55);
     pointer-events: auto;
     will-change: transform, opacity;
     transform: translate3d(0, 0, 0);
@@ -679,8 +686,29 @@
     z-index: 2;
     padding: 10px 10px 12px;
     border-radius: 18px;
-    background: linear-gradient(180deg, rgba(0,0,0,0.22), rgba(0,0,0,0.10));
-    border: 1px solid rgba(255,255,255,0.10);
+    background:
+      radial-gradient(140px 110px at 50% 45%, rgba(255, 220, 190, 0.16), rgba(255, 220, 190, 0.0) 62%),
+      linear-gradient(180deg, rgba(0,0,0,0.56), rgba(0,0,0,0.34));
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow:
+      0 10px 22px rgba(0,0,0,0.22),
+      inset 0 0 0 1px rgba(0,0,0,0.15);
+  }
+
+  .lantern .lantern-inner::after {
+    /* glossy streak (adds 3D feel without extra DOM) */
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border-radius: 16px;
+    background: linear-gradient(115deg,
+      rgba(255,255,255,0.18) 0%,
+      rgba(255,255,255,0.06) 14%,
+      rgba(255,255,255,0.0) 36%,
+      rgba(255,255,255,0.0) 100%);
+    opacity: 0.55;
+    pointer-events: none;
+    mix-blend-mode: screen;
   }
 
   .lantern .lantern-inner::before {
@@ -739,27 +767,30 @@
 
   .lantern-name {
     font-weight: 900;
-    font-size: 14px;
+    font-size: 15px;
     opacity: 1;
     margin-bottom: 6px;
     text-align: center;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.65);
   }
 
   .lantern-msg {
     font-size: 15px;
-    line-height: 1.35;
+    line-height: 1.4;
     opacity: 1;
-    overflow: hidden;
-    display: -webkit-box;
-    line-clamp: 3;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
+    overflow: visible;
+    display: block;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
     text-align: center;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.70);
   }
 
   @keyframes lantern-float {
     0%   { transform: translate3d(var(--x0, 0px), 0, 0) scale(0.98) rotate(-0.6deg); opacity: 0; }
-    8%   { opacity: 1; }
+    7%   { opacity: 1; }
+    94%  { opacity: 1; }
     100% { transform: translate3d(var(--x1, 0px), -125vh, 0) scale(1.02) rotate(0.8deg); opacity: 0; }
   }
 
@@ -1773,18 +1804,22 @@ let wishesCursor = 0;
 let wishesPriority = [];
 let lanternSlotEls = [];
 
+let wishesCycle = 0;
+
 // Lantern placement: strict non-overlap via fixed horizontal slots.
 let lanternSlotCount = 4;
-let lanternSlotCentersPct = [];
+let lanternColumnLeftPx = [];
+let lanternColumnWidthPx = 200;
 let lanternSlotNextOkMs = new Array(lanternSlotCount).fill(0);
+let lanternSlotOccupied = new Array(lanternSlotCount).fill(false);
 
 let lanternFeedTimerId = 0;
 let lanternFeedRunning = false;
 
 const LANTERN_FEED_MIN_INTERVAL_MS = 1200;
 const LANTERN_FEED_JITTER_MS = 700;
-const LANTERN_SLOT_MIN_GAP_MS = 10500;
-const LANTERN_AVOID_ADJ_MS = 4200;
+const LANTERN_SLOT_MIN_GAP_MS = 16000;
+const LANTERN_AVOID_ADJ_MS = 12000;
 
 let lanternLastSpawnSlot = -1;
 let lanternLastSpawnAtMs = 0;
@@ -1800,18 +1835,27 @@ function recomputeLanternSlots() {
   const vw = Math.max(320, window.innerWidth || 0);
   const containerW = getLanternContainerWidth();
 
-  // Choose slot count so that each lantern can actually fit without overlapping.
-  const maxSlots = vw < 520 ? 5 : (vw < 900 ? 6 : 7);
-  const minLanternW = vw < 520 ? 92 : (vw < 900 ? 104 : 112);
-  const minGap = 38;
-  const computed = Math.floor(containerW / Math.max(1, (minLanternW + minGap)));
-  lanternSlotCount = Math.max(3, Math.min(maxSlots, computed || 3));
-  lanternSlotCentersPct = [];
+  // Pixel-based columns: compute left positions using the lantern width + a fixed gap.
+  const pad = Math.max(12, Math.round(containerW * 0.05));
+  const desiredW = vw < 520 ? 240 : (vw < 900 ? 268 : 288);
+  // Required: keep ~30% horizontal spacing per lantern.
+  const gap = Math.max(36, Math.round(desiredW * 0.30));
+  const maxSlots = vw < 520 ? 3 : (vw < 900 ? 4 : 5);
+
+  const usable = Math.max(220, containerW - pad * 2);
+  const computed = Math.floor((usable + gap) / (Math.max(170, desiredW) + gap));
+  lanternSlotCount = Math.max(2, Math.min(maxSlots, computed || 2));
+
+  const usableForCols = Math.max(200, containerW - pad * 2 - gap * (lanternSlotCount - 1));
+  lanternColumnWidthPx = Math.max(170, Math.min(desiredW, Math.floor(usableForCols / lanternSlotCount)));
+
+  lanternColumnLeftPx = [];
   for (let i = 0; i < lanternSlotCount; i++) {
-    lanternSlotCentersPct.push(((i + 0.5) / lanternSlotCount) * 100);
+    lanternColumnLeftPx.push(pad + i * (lanternColumnWidthPx + gap));
   }
 
   lanternSlotNextOkMs = new Array(lanternSlotCount).fill(0);
+  lanternSlotOccupied = new Array(lanternSlotCount).fill(false);
 }
 
 recomputeLanternSlots();
@@ -1821,8 +1865,8 @@ window.addEventListener('resize', () => {
 });
 
 function maxLanternsOnScreen() {
-  // Keep a hard cap to avoid DOM overload, but allow more than slotCount.
-  return Math.max(lanternSlotCount + 3, Math.floor(lanternSlotCount * 1.8));
+  // Keep it breathable: roughly one lantern per column.
+  return Math.max(3, lanternSlotCount + 1);
 }
 
 function pickSpawnSlot(nowMs) {
@@ -1831,9 +1875,10 @@ function pickSpawnSlot(nowMs) {
     const idx = (start + off) % lanternSlotCount;
     const okAt = lanternSlotNextOkMs[idx] || 0;
     if (nowMs < okAt) continue;
+    if (lanternSlotOccupied[idx]) continue;
 
     // Keep adjacent columns from firing back-to-back (looks crowded).
-    if (lanternLastSpawnSlot >= 0) {
+    if (lanternSlotCount > 2 && lanternLastSpawnSlot >= 0) {
       const tooSoon = (nowMs - (lanternLastSpawnAtMs || 0)) < LANTERN_AVOID_ADJ_MS;
       const adjacent = Math.abs(idx - lanternLastSpawnSlot) <= 1;
       if (tooSoon && adjacent) continue;
@@ -1845,12 +1890,7 @@ function pickSpawnSlot(nowMs) {
 }
 
 function computeLanternWidthPx(containerWidth) {
-  const vw = Math.max(320, window.innerWidth || 0);
-  const base = vw < 520 ? 164 : (vw < 900 ? 182 : 198);
-  const slotW = containerWidth / Math.max(1, lanternSlotCount);
-  // Keep generous gap between columns: lantern takes ~72% of the slot.
-  const maxWidth = Math.max(74, Math.floor(Math.min(slotW * 0.72, slotW - 36)));
-  return Math.min(base, maxWidth);
+  return Math.max(170, Math.min(lanternColumnWidthPx || 200, Math.floor(containerWidth - 24)));
 }
 
 function clearWishesTimeouts() {
@@ -1883,7 +1923,16 @@ function nextWish() {
   if (!wishesPool.length) {
     return { name: 'Góc lời chúc', message: 'Bấm “Gửi lời chúc” để gửi điều bạn muốn nói tới Lan Anh nhé ✨' };
   }
-  const w = wishesPool[wishesCursor % wishesPool.length];
+
+  // IMPORTANT: show ALL wishes once (cycle 1) before looping to cycle 2.
+  if (wishesCursor >= wishesPool.length) {
+    wishesCycle++;
+    wishesCursor = 0;
+    // Shuffle between cycles to keep it fresh, but never mid-cycle.
+    wishesPool = shuffleInPlace(wishesPool.slice());
+  }
+
+  const w = wishesPool[wishesCursor];
   wishesCursor++;
   return w;
 }
@@ -1957,7 +2006,7 @@ function triggerFinalOverlay() {
 }
 
 async function fetchWishes(limit = 30) {
-  const capped = Math.max(1, Math.min(500, limit | 0));
+  const capped = Math.max(1, Math.min(200, limit | 0));
   const res = await fetch(`${WISHES_API_URL}?limit=${capped}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`fetch wishes failed: ${res.status}`);
   const data = await res.json();
@@ -1970,6 +2019,38 @@ async function fetchWishes(limit = 30) {
     .filter(w => (w.name || w.message));
 }
 
+async function fetchAllWishes() {
+  const all = [];
+  const seen = new Set();
+
+  let cursor = null;
+  let safety = 0;
+  while (safety++ < 60) {
+    const qs = cursor ? `?limit=200&cursor=${encodeURIComponent(cursor)}` : `?limit=200`;
+    const res = await fetch(`${WISHES_API_URL}${qs}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`fetch wishes failed: ${res.status}`);
+    const data = await res.json();
+    const rows = Array.isArray(data?.wishes) ? data.wishes : (Array.isArray(data) ? data : []);
+
+    for (const w of rows) {
+      const id = w && w.id != null ? String(w.id) : `${w?.name || ''}|${w?.message || ''}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      all.push({
+        name: typeof w.name === 'string' ? w.name : '',
+        message: typeof w.message === 'string' ? w.message : ''
+      });
+    }
+
+    const next = typeof data?.nextCursor === 'string' ? data.nextCursor : null;
+    const hasMore = !!data?.hasMore;
+    if (!next || !hasMore || rows.length === 0) break;
+    cursor = next;
+  }
+
+  return all.filter(w => (w.name || w.message));
+}
+
 async function postWish(name, message) {
   const res = await fetch(WISHES_API_URL, {
     method: 'POST',
@@ -1980,16 +2061,16 @@ async function postWish(name, message) {
   return await res.json();
 }
 
-function spawnLantern(wish) {
+function spawnLantern(wish, forcedSlot) {
   const layer = document.getElementById('lanternLayer');
-  if (!layer) return;
+  if (!layer) return false;
 
   // Cap visible lanterns to reduce stacking
-  if (layer.childElementCount >= maxLanternsOnScreen()) return;
+  if (layer.childElementCount >= maxLanternsOnScreen()) return false;
 
   const nowMs = Date.now();
-  const slot = pickSpawnSlot(nowMs);
-  if (slot < 0) return;
+  const slot = (typeof forcedSlot === 'number') ? forcedSlot : pickSpawnSlot(nowMs);
+  if (slot < 0) return false;
 
   const lantern = document.createElement('div');
   lantern.className = 'lantern';
@@ -2017,10 +2098,8 @@ function spawnLantern(wish) {
   const containerW = Math.max(320, rect.width || 0);
   const wpx = computeLanternWidthPx(containerW);
   lantern.style.setProperty('--w', `${wpx}px`);
-  const centerPct = lanternSlotCentersPct[slot] || 50;
-  const widthPct = (wpx / containerW) * 100;
-  const leftPct = Math.min(96 - widthPct, Math.max(4, centerPct - widthPct / 2));
-  lantern.style.left = `${leftPct}%`;
+  const leftPx = lanternColumnLeftPx[slot] != null ? lanternColumnLeftPx[slot] : Math.max(12, (containerW - wpx) / 2);
+  lantern.style.left = `${Math.round(leftPx)}px`;
 
   // Disable drift to keep slots disjoint for the full flight
   lantern.style.setProperty('--x0', `0px`);
@@ -2035,6 +2114,8 @@ function spawnLantern(wish) {
   const sway = 3.4 + Math.random() * 2.8;
   lantern.style.setProperty('--sway', `${sway}s`);
 
+  lanternSlotOccupied[slot] = true;
+
   // Prevent same-slot lanterns from being too close vertically.
   lanternSlotNextOkMs[slot] = nowMs + LANTERN_SLOT_MIN_GAP_MS + Math.random() * 2200;
   lanternLastSpawnSlot = slot;
@@ -2042,8 +2123,25 @@ function spawnLantern(wish) {
 
   layer.appendChild(lantern);
   lantern.addEventListener('animationend', () => {
+    lanternSlotOccupied[slot] = false;
     lantern.remove();
   }, { once: true });
+
+  return true;
+}
+
+function trySpawnNextLantern() {
+  const layer = document.getElementById('lanternLayer');
+  if (!layer) return false;
+  if (layer.childElementCount >= maxLanternsOnScreen()) return false;
+
+  const nowMs = Date.now();
+  const slot = pickSpawnSlot(nowMs);
+  if (slot < 0) return false;
+
+  // Only consume a wish if we're actually going to spawn.
+  const wish = nextWish();
+  return spawnLantern(wish, slot);
 }
 
 function startLanternFeed() {
@@ -2059,13 +2157,16 @@ function startLanternFeed() {
       return;
     }
 
-    spawnLantern(nextWish());
-    const nextIn = LANTERN_FEED_MIN_INTERVAL_MS + Math.random() * LANTERN_FEED_JITTER_MS;
+    const spawned = trySpawnNextLantern();
+    // Keep it continuous: if we couldn't spawn due to spacing/cap, retry soon.
+    const nextIn = spawned
+      ? (LANTERN_FEED_MIN_INTERVAL_MS + Math.random() * LANTERN_FEED_JITTER_MS)
+      : (220 + Math.random() * 240);
     lanternFeedTimerId = window.setTimeout(tick, nextIn);
   };
 
   // Prime a small burst so it feels immediate.
-  for (let i = 0; i < Math.min(3, lanternSlotCount); i++) spawnLantern(nextWish());
+  for (let i = 0; i < Math.min(3, lanternSlotCount); i++) trySpawnNextLantern();
   lanternFeedTimerId = window.setTimeout(tick, 320);
 }
 
@@ -2137,13 +2238,14 @@ async function startWishesSequence() {
 
   let wishes = [];
   try {
-    wishes = await fetchWishes(500);
+    wishes = await fetchAllWishes();
   } catch (e) {
     console.warn('Wishes API unavailable, continuing without feed.', e);
   }
 
   wishesPool = shuffleInPlace(wishes);
   wishesCursor = 0;
+  wishesCycle = 1;
 
   // Start a continuous stream of lanterns.
   recomputeLanternSlots();
