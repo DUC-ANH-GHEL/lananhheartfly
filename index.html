@@ -155,6 +155,7 @@
     inset: 0;
     border-radius: 12px;
     overflow: hidden;
+    z-index: 2;
     background:
       radial-gradient(1px 1px at 12% 18%, rgba(0,0,0,0.030) 48%, rgba(0,0,0,0) 52%) 0 0 / 26px 26px,
       radial-gradient(1px 1px at 72% 62%, rgba(0,0,0,0.024) 48%, rgba(0,0,0,0) 52%) 0 0 / 32px 32px,
@@ -164,17 +165,33 @@
     box-shadow:
       0 18px 50px rgba(0, 0, 0, 0.38),
       0 2px 0 rgba(255,255,255,0.35) inset;
-    transition: opacity 700ms ease;
+    will-change: transform, opacity;
+    transition:
+      transform 1700ms cubic-bezier(0.16, 1, 0.18, 1),
+      opacity 220ms ease;
   }
 
-  /* Avoid text/graphics showing through the closed cover */
+  /* Inner sheet slides out from the pocket */
   .card-overlay:not(.open) .card-base {
     opacity: 0;
+    transform: translateY(0);
   }
 
   .card-overlay.open .card-base {
     opacity: 1;
-    transition-delay: 650ms;
+    transform: translateY(calc(-100% - 34px));
+  }
+
+  /* Stage 2: after it pops out, it drops back to align with the card */
+  .card-overlay.sheet-drop .card-base {
+    transform: translateY(0);
+  }
+
+  .card-overlay.sheet-out .card-base {
+    z-index: 7;
+    box-shadow:
+      0 28px 72px rgba(0,0,0,0.34),
+      0 2px 0 rgba(255,255,255,0.35) inset;
   }
 
   .card-base::after {
@@ -213,13 +230,13 @@
 
   .card-overlay:not(.open) .card-base-content {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(18px);
   }
 
   .card-overlay.open .card-base-content {
     opacity: 1;
     transform: translateY(0);
-    transition-delay: 700ms;
+    transition-delay: 520ms;
   }
 
   .card-inside {
@@ -239,13 +256,8 @@
     padding: 22px;
   }
 
-  .inside-left {
-    color: var(--ink);
-  }
-
-  .inside-right {
-    color: var(--ink);
-  }
+  .inside-left { color: var(--ink); }
+  .inside-right { color: var(--ink); }
 
   .card-base-title {
     font-family: "Playfair Display", Georgia, serif;
@@ -260,14 +272,81 @@
     opacity: 0.75;
   }
 
+  /* Tap feedback (especially for mobile) */
+  .card-overlay.pressed .card {
+    transform: translateZ(0) scale(0.992);
+  }
+
+  /* Click-to-open: the inner sheet slides out slowly */
+  .card-base {
+    z-index: 2;
+    will-change: transform, opacity;
+    transition:
+      transform 1650ms cubic-bezier(0.16, 1, 0.18, 1),
+      opacity 520ms ease;
+  }
+
   .card-cover {
     position: absolute;
     inset: 0;
     border-radius: 12px;
     transform-style: preserve-3d;
-    transform-origin: left center;
-    transition: transform 2600ms cubic-bezier(0.16, 1, 0.18, 1);
+    transform-origin: 50% 100%;
+    z-index: 5;
+    transition: none;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+    will-change: transform;
+    opacity: 1;
+    transition: opacity 520ms ease;
+  }
+
+  /* Pocket lip to hide the sheet edge while inside */
+  .card-cover::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    pointer-events: none;
+    background:
+      linear-gradient(180deg,
+        rgba(0,0,0,0.00) 0%,
+        rgba(0,0,0,0.00) 58%,
+        rgba(0,0,0,0.16) 76%,
+        rgba(0,0,0,0.32) 100%);
+    opacity: 0.55;
+    mix-blend-mode: multiply;
+  }
+
+  /* Paper edge + hinge shading to feel like real card opening */
+  .card-cover::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg,
+        rgba(0,0,0,0.28) 0%,
+        rgba(0,0,0,0.00) 18%,
+        rgba(0,0,0,0.00) 72%,
+        rgba(0,0,0,0.22) 100%);
+    opacity: 0.10;
+    mix-blend-mode: multiply;
+    transform: translateZ(1px);
+  }
+
+  .card-overlay.open .card-cover { transform: none; }
+  .card-overlay.open .card-cover::after { opacity: 0.22; }
+
+  /* Fade the pocket away while the sheet drops onto it */
+  .card-overlay.sheet-drop .card-cover {
+    opacity: 0;
+    transition-delay: 120ms;
+  }
+
+  /* Once the sheet is fully out, it covers the card */
+  .card-overlay.sheet-out .card-cover {
+    opacity: 0;
   }
 
   .card-cover-face {
@@ -443,9 +522,8 @@
     background: rgba(0, 0, 0, 0.22);
   }
 
-  .card-overlay.open .card-cover {
-    transform: rotateY(-175deg);
-  }
+  .card-overlay.open .card-cover { transform: none; }
+  .card-overlay.open .card-cover::after { opacity: 0.22; }
 
   .card-overlay:focus {
     outline: none;
@@ -694,6 +772,8 @@
   const bgMusic = document.getElementById('bgMusic');
   if (!overlay) return;
 
+  const base = overlay.querySelector('.card-base');
+
   // Subtle tilt/parallax on pointer move
   (function initTilt() {
     const card = overlay.querySelector('.card');
@@ -778,6 +858,8 @@
     if (opened) return;
     opened = true;
 
+    overlay.classList.remove('sheet-drop');
+    overlay.classList.remove('sheet-out');
     overlay.classList.add('open');
     startMusicOnClick();
 
@@ -799,6 +881,36 @@
     if (!overlay.classList.contains('hide')) return;
     startExperience();
   });
+
+  // When the inner sheet finishes sliding, put it above the pocket.
+  if (base) {
+    base.addEventListener('transitionend', (e) => {
+      if (e.propertyName !== 'transform') return;
+      if (!overlay.classList.contains('open')) return;
+
+      // Stage 1 -> Stage 2: pop out finished, now drop to align with the card.
+      if (!overlay.classList.contains('sheet-drop')) {
+        overlay.classList.add('sheet-drop');
+        return;
+      }
+
+      // Stage 2 -> final: drop finished, lock the final stacking state.
+      overlay.classList.add('sheet-out');
+    });
+  }
+
+  // Mobile-friendly press feedback
+  overlay.addEventListener('pointerdown', () => {
+    if (opened) return;
+    overlay.classList.add('pressed');
+  }, { passive: true });
+
+  function clearPressed() {
+    overlay.classList.remove('pressed');
+  }
+  overlay.addEventListener('pointerup', clearPressed, { passive: true });
+  overlay.addEventListener('pointercancel', clearPressed, { passive: true });
+  overlay.addEventListener('pointerleave', clearPressed, { passive: true });
 
   overlay.addEventListener('click', openCard, { passive: true });
   overlay.addEventListener('keydown', (e) => {
