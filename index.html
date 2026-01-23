@@ -839,6 +839,49 @@
     text-shadow: 0 2px 12px rgba(0,0,0,0.70);
   }
 
+  .lantern-hearts {
+    position: absolute;
+    right: 12px;
+    bottom: 10px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(0,0,0,0.28);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.22);
+    font-weight: 900;
+    font-size: 12px;
+    pointer-events: none;
+  }
+
+  .lantern-hearts .icon {
+    color: rgba(255, 120, 170, 0.95);
+    text-shadow: 0 8px 18px rgba(255, 120, 170, 0.22);
+  }
+
+  .likeBurst {
+    position: absolute;
+    z-index: 60;
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0;
+    pointer-events: none;
+    color: #ff2d55;
+    animation: likeBurst 900ms ease-out forwards;
+    filter: drop-shadow(0 12px 24px rgba(0,0,0,0.55));
+    font-size: 52px;
+    line-height: 1;
+  }
+
+  @keyframes likeBurst {
+    0%   { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+    15%  { opacity: 1; }
+    60%  { transform: translate(-50%, calc(-50% - 28px)) scale(1.02); opacity: 1; }
+    100% { transform: translate(-50%, calc(-50% - 64px)) scale(1.1); opacity: 0; }
+  }
+
   @keyframes lantern-float {
     0%   { transform: translate3d(var(--x0, 0px), 0, 0) scale(0.98) rotate(-0.6deg); opacity: 0; }
     7%   { opacity: 1; }
@@ -2262,9 +2305,11 @@ async function fetchWishes(limit = 30) {
   const wishes = Array.isArray(data) ? data : (Array.isArray(data?.wishes) ? data.wishes : []);
   return wishes
     .map(w => ({
+      id: w && w.id != null ? String(w.id) : '',
       name: typeof w.name === 'string' ? w.name : '',
       message: typeof w.message === 'string' ? w.message : '',
-      imageUrl: (typeof w.image_url === 'string' ? w.image_url : (typeof w.imageUrl === 'string' ? w.imageUrl : '')).trim()
+      imageUrl: (typeof w.image_url === 'string' ? w.image_url : (typeof w.imageUrl === 'string' ? w.imageUrl : '')).trim(),
+      hearts: (typeof w.hearts_count === 'number' ? w.hearts_count : (typeof w.heartsCount === 'number' ? w.heartsCount : 0)) | 0
     }))
     .filter(w => (w.name || w.message));
 }
@@ -2287,9 +2332,11 @@ async function fetchAllWishes() {
       if (seen.has(id)) continue;
       seen.add(id);
       all.push({
+        id: w && w.id != null ? String(w.id) : '',
         name: typeof w.name === 'string' ? w.name : '',
         message: typeof w.message === 'string' ? w.message : '',
-        imageUrl: (typeof w.image_url === 'string' ? w.image_url : (typeof w.imageUrl === 'string' ? w.imageUrl : '')).trim()
+        imageUrl: (typeof w.image_url === 'string' ? w.image_url : (typeof w.imageUrl === 'string' ? w.imageUrl : '')).trim(),
+        hearts: (typeof w.hearts_count === 'number' ? w.hearts_count : (typeof w.heartsCount === 'number' ? w.heartsCount : 0)) | 0
       });
     }
 
@@ -2312,6 +2359,18 @@ async function postWish(name, message, imageUrl) {
   return await res.json();
 }
 
+async function likeWish(id) {
+  const wishId = String(id || '').trim();
+  if (!wishId) throw new Error('missing wish id');
+  const res = await fetch(WISHES_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'like', id: wishId })
+  });
+  if (!res.ok) throw new Error(`like failed: ${res.status}`);
+  return await res.json();
+}
+
 function spawnLantern(wish, forcedSlot) {
   const layer = document.getElementById('lanternLayer');
   if (!layer) return false;
@@ -2319,9 +2378,12 @@ function spawnLantern(wish, forcedSlot) {
   // Cap visible lanterns to reduce stacking
   if (layer.childElementCount >= maxLanternsOnScreen()) return false;
 
+  const wishId = wish && wish.id != null ? String(wish.id) : '';
   const safeName = (wish?.name || '').trim();
   const safeMsg = (wish?.message || '').trim();
   const imageUrl = String(wish?.imageUrl || wish?.image_url || '').trim();
+  const hearts = (wish && typeof wish.hearts === 'number') ? (wish.hearts | 0)
+    : ((wish && typeof wish.hearts_count === 'number') ? (wish.hearts_count | 0) : 0);
 
   const nowMs = Date.now();
   const slot = (typeof forcedSlot === 'number') ? forcedSlot : pickSpawnSlot(nowMs);
@@ -2332,6 +2394,7 @@ function spawnLantern(wish, forcedSlot) {
   wrap.style.zIndex = imageUrl ? '40' : '20';
   if (imageUrl) wrap.dataset.hasPhoto = '1';
   wrap.dataset.slot = String(slot);
+  if (wishId) wrap.dataset.wishId = wishId;
 
   const lantern = document.createElement('div');
   lantern.className = 'lantern';
@@ -2350,6 +2413,12 @@ function spawnLantern(wish, forcedSlot) {
   inner.appendChild(nameEl);
   inner.appendChild(msgEl);
   lantern.appendChild(inner);
+
+  const heartsEl = document.createElement('div');
+  heartsEl.className = 'lantern-hearts';
+  heartsEl.innerHTML = `<span class="icon">♥</span><span class="count">${Math.max(0, hearts)}</span>`;
+  lantern.appendChild(heartsEl);
+
   wrap.appendChild(lantern);
 
   if (imageUrl) {
@@ -2618,6 +2687,70 @@ function wirePhotoModal() {
 }
 
 wirePhotoModal();
+
+function bumpHeartsOnWrap(wrap) {
+  if (!wrap) return;
+  const countEl = wrap.querySelector('.lantern-hearts .count');
+  if (!countEl) return;
+  const cur = parseInt(countEl.textContent || '0', 10) || 0;
+  const next = cur + 1;
+  countEl.textContent = String(next);
+}
+
+function showLikeBurstAt(layer, clientX, clientY) {
+  if (!layer) return;
+  const rect = layer.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  const el = document.createElement('div');
+  el.className = 'likeBurst';
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  el.textContent = '♥';
+  layer.appendChild(el);
+  el.addEventListener('animationend', () => el.remove(), { once: true });
+}
+
+function wireLanternLikes() {
+  const layer = document.getElementById('lanternLayer');
+  if (!layer) return;
+
+  let lastTapId = '';
+  let lastTapAt = 0;
+
+  layer.addEventListener('pointerup', async (e) => {
+    // Only like when tapping the text panel, not the hanging photo.
+    const inner = e.target && e.target.closest ? e.target.closest('.lantern-inner') : null;
+    if (!inner) return;
+
+    const wrap = inner.closest('.lanternWrap');
+    const id = wrap && wrap.dataset ? String(wrap.dataset.wishId || '') : '';
+    if (!id) return;
+
+    const now = Date.now();
+    const isDouble = (lastTapId === id) && (now - lastTapAt) <= 340;
+    lastTapId = id;
+    lastTapAt = now;
+    if (!isDouble) return;
+
+    // TikTok-like: instant visual feedback
+    bumpHeartsOnWrap(wrap);
+    showLikeBurstAt(layer, e.clientX, e.clientY);
+
+    try {
+      const data = await likeWish(id);
+      const hc = (data && data.wish && typeof data.wish.hearts_count === 'number') ? (data.wish.hearts_count | 0) : null;
+      if (hc != null) {
+        const countEl = wrap.querySelector('.lantern-hearts .count');
+        if (countEl) countEl.textContent = String(hc);
+      }
+    } catch (err) {
+      console.warn(err);
+    }
+  }, { passive: true });
+}
+
+wireLanternLikes();
 
 async function startWishesSequence() {
   if (wishesPlaying || finalTriggered) return;

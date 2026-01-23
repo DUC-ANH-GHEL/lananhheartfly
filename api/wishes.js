@@ -11,6 +11,11 @@ const MAX_NAME = 40;
 const MAX_MESSAGE = 240;
 const MAX_IMAGE_URL = 800;
 
+function asInt(v) {
+  const n = typeof v === 'number' ? v : parseInt(String(v || ''), 10);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 function withCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -47,6 +52,10 @@ async function ensureSchema(sql) {
   await sql`
     ALTER TABLE wishes
     ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT '';
+  `;
+  await sql`
+    ALTER TABLE wishes
+    ADD COLUMN IF NOT EXISTS hearts_count INT NOT NULL DEFAULT 0;
   `;
   await sql`CREATE INDEX IF NOT EXISTS wishes_created_at_idx ON wishes (created_at DESC);`;
   await sql`CREATE INDEX IF NOT EXISTS wishes_created_at_id_idx ON wishes (created_at DESC, id DESC);`;
@@ -139,7 +148,7 @@ module.exports = async (req, res) => {
       let rows;
       if (cursor) {
         rows = await sql`
-          SELECT id, name, message, image_url, created_at
+          SELECT id, name, message, image_url, hearts_count, created_at
           FROM wishes
           WHERE (created_at, id) < (${cursor.createdAt}::timestamptz, ${cursor.id}::bigint)
           ORDER BY created_at DESC, id DESC
@@ -147,7 +156,7 @@ module.exports = async (req, res) => {
         `;
       } else {
         rows = await sql`
-          SELECT id, name, message, image_url, created_at
+          SELECT id, name, message, image_url, hearts_count, created_at
           FROM wishes
           ORDER BY created_at DESC, id DESC
           LIMIT ${limit}
@@ -165,6 +174,36 @@ module.exports = async (req, res) => {
 
     if (req.method === 'POST') {
       const body = req.body || {};
+
+      const action = typeof body.action === 'string' ? body.action.trim().toLowerCase() : '';
+      if (action === 'like') {
+        const id = asInt(body.id ?? body.wishId);
+        if (!Number.isFinite(id)) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: 'Valid id is required' }));
+          return;
+        }
+
+        const updated = await sql`
+          UPDATE wishes
+          SET hearts_count = hearts_count + 1
+          WHERE id = ${id}::bigint
+          RETURNING id, name, message, image_url, hearts_count, created_at
+        `;
+        if (!updated.length) {
+          res.statusCode = 404;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: 'Wish not found' }));
+          return;
+        }
+
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.statusCode = 200;
+        res.end(JSON.stringify({ wish: updated[0] }));
+        return;
+      }
+
       const name = safeText(body.name || '', MAX_NAME);
       const message = safeText(body.message || '', MAX_MESSAGE);
       const imageUrl = safeUrl(body.imageUrl || body.image_url || '', MAX_IMAGE_URL);
@@ -179,7 +218,7 @@ module.exports = async (req, res) => {
       const inserted = await sql`
         INSERT INTO wishes (name, message, image_url)
         VALUES (${name}, ${message}, ${imageUrl})
-        RETURNING id, name, message, image_url, created_at
+        RETURNING id, name, message, image_url, hearts_count, created_at
       `;
 
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
