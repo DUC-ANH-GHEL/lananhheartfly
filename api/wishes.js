@@ -9,6 +9,7 @@ const postgres = require('postgres');
 
 const MAX_NAME = 40;
 const MAX_MESSAGE = 240;
+const MAX_IMAGE_URL = 800;
 
 function withCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -42,6 +43,10 @@ async function ensureSchema(sql) {
       message TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+  `;
+  await sql`
+    ALTER TABLE wishes
+    ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT '';
   `;
   await sql`CREATE INDEX IF NOT EXISTS wishes_created_at_idx ON wishes (created_at DESC);`;
   await sql`CREATE INDEX IF NOT EXISTS wishes_created_at_id_idx ON wishes (created_at DESC, id DESC);`;
@@ -80,6 +85,14 @@ function decodeCursor(cursor) {
 function safeText(v, maxLen) {
   if (typeof v !== 'string') return '';
   const s = v.trim().replace(/\s+/g, ' ');
+  return s.length > maxLen ? s.slice(0, maxLen) : s;
+}
+
+function safeUrl(v, maxLen) {
+  if (typeof v !== 'string') return '';
+  const s = v.trim();
+  if (!s) return '';
+  if (!/^https?:\/\//i.test(s)) return '';
   return s.length > maxLen ? s.slice(0, maxLen) : s;
 }
 
@@ -126,7 +139,7 @@ module.exports = async (req, res) => {
       let rows;
       if (cursor) {
         rows = await sql`
-          SELECT id, name, message, created_at
+          SELECT id, name, message, image_url, created_at
           FROM wishes
           WHERE (created_at, id) < (${cursor.createdAt}::timestamptz, ${cursor.id}::bigint)
           ORDER BY created_at DESC, id DESC
@@ -134,7 +147,7 @@ module.exports = async (req, res) => {
         `;
       } else {
         rows = await sql`
-          SELECT id, name, message, created_at
+          SELECT id, name, message, image_url, created_at
           FROM wishes
           ORDER BY created_at DESC, id DESC
           LIMIT ${limit}
@@ -154,6 +167,7 @@ module.exports = async (req, res) => {
       const body = req.body || {};
       const name = safeText(body.name || '', MAX_NAME);
       const message = safeText(body.message || '', MAX_MESSAGE);
+      const imageUrl = safeUrl(body.imageUrl || body.image_url || '', MAX_IMAGE_URL);
 
       if (!message) {
         res.statusCode = 400;
@@ -163,9 +177,9 @@ module.exports = async (req, res) => {
       }
 
       const inserted = await sql`
-        INSERT INTO wishes (name, message)
-        VALUES (${name}, ${message})
-        RETURNING id, name, message, created_at
+        INSERT INTO wishes (name, message, image_url)
+        VALUES (${name}, ${message}, ${imageUrl})
+        RETURNING id, name, message, image_url, created_at
       `;
 
       res.setHeader('Content-Type', 'application/json; charset=utf-8');

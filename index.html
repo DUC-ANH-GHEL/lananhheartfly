@@ -643,10 +643,23 @@
     opacity: 1;
   }
 
-  .lantern {
+  /* Wrapper carries the flight animation so the lantern can keep overflow:hidden (shape unchanged) */
+  .lanternWrap {
     position: absolute;
     bottom: calc(-34vh - var(--y0, 0px));
     width: var(--w, clamp(132px, 30vw, 190px));
+    pointer-events: auto;
+    will-change: transform, opacity;
+    transform: translate3d(0, 0, 0);
+    transform-origin: 50% 18%;
+    animation:
+      lantern-float var(--dur, 38s) linear forwards,
+      lantern-sway var(--sway, 3.6s) ease-in-out infinite;
+  }
+
+  .lantern {
+    position: relative;
+    width: 100%;
     min-height: 160px;
     padding: 34px 16px 42px;
     border-radius: 120px;
@@ -674,12 +687,7 @@
     letter-spacing: 0.2px;
     text-shadow: 0 3px 14px rgba(0,0,0,0.55);
     pointer-events: auto;
-    will-change: transform, opacity;
-    transform: translate3d(0, 0, 0);
-    transform-origin: 50% 18%;
-    animation:
-      lantern-float var(--dur, 38s) linear forwards,
-      lantern-sway var(--sway, 3.6s) ease-in-out infinite;
+    will-change: auto;
   }
 
   .lantern .lantern-inner {
@@ -764,6 +772,49 @@
       repeating-linear-gradient(90deg, rgba(255, 150, 190, 0.78) 0 2px, rgba(255, 150, 190, 0.0) 2px 8px);
     box-shadow: 0 18px 30px rgba(0,0,0,0.24);
     opacity: 0.95;
+  }
+
+  .lantern-photoWrap {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    /* Anchor right at the lantern bottom so the rope starts there */
+    top: calc(100% - 2px);
+    width: min(190px, calc(100% - 18px));
+    height: 360px;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .lantern-rope {
+    position: absolute;
+    left: 50%;
+    /* Rope starts at the lantern bottom */
+    top: 0;
+    width: 2px;
+    height: 170px;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, rgba(255, 220, 210, 0.0), rgba(255, 220, 210, 0.62), rgba(255, 220, 210, 0.18));
+    box-shadow: 0 0 10px rgba(255, 190, 170, 0.28);
+    opacity: 0.9;
+  }
+
+  .lantern-photo {
+    position: absolute;
+    left: 50%;
+    top: 184px; /* rope(170) + gap(14) */
+    width: min(170px, calc(100% - 8px));
+    height: min(170px, calc(100% - 8px));
+    transform: translateX(-50%);
+    object-fit: cover;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.20);
+    box-shadow:
+      0 18px 44px rgba(0,0,0,0.55),
+      0 0 26px rgba(255, 170, 140, 0.20);
+    background: rgba(255,255,255,0.06);
+    pointer-events: auto;
+    cursor: zoom-in;
   }
 
   .lantern-name {
@@ -916,6 +967,65 @@
     pointer-events: auto;
   }
 
+  /* Photo viewer modal (click lantern photo to open) */
+  #photoModal {
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 180ms ease;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+  }
+
+  body.photo-modal #photoModal {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #photoModalBackdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.70);
+    backdrop-filter: blur(2px);
+  }
+
+  #photoModalCard {
+    position: relative;
+    width: min(92vw, 760px);
+    max-height: min(86vh, 860px);
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(10, 10, 14, 0.72);
+    box-shadow: 0 28px 90px rgba(0,0,0,0.65);
+  }
+
+  #photoModalImg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: min(86vh, 860px);
+    object-fit: contain;
+    background: rgba(0,0,0,0.28);
+  }
+
+  #photoModalClose {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    z-index: 2;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(0,0,0,0.38);
+    color: rgba(255,255,255,0.92);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
   #wishModalBackdrop {
     position: absolute;
     inset: 0;
@@ -963,6 +1073,31 @@
   }
 
   .wishField textarea { min-height: 92px; resize: none; }
+
+  .wishHint {
+    font-size: 12px;
+    opacity: 0.72;
+    line-height: 1.35;
+  }
+
+  #wishImagePreview {
+    display: none;
+    margin-top: 6px;
+    width: 112px;
+    height: 112px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.06);
+    box-shadow: 0 14px 34px rgba(0,0,0,0.35);
+    overflow: hidden;
+  }
+
+  #wishImagePreview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
 
   #wishActions {
     display: flex;
@@ -1097,10 +1232,24 @@
         <label for="wishMessage">Lời chúc</label>
         <textarea id="wishMessage" maxlength="240" placeholder="Viết lời chúc của bạn..."></textarea>
       </div>
+      <div class="wishField">
+        <label for="wishImage">Ảnh (không bắt buộc)</label>
+        <input id="wishImage" type="file" accept="image/*" />
+        <div id="wishImagePreview" aria-hidden="true"></div>
+        <div class="wishHint">Thêm một kỷ niệm nhỏ bằng ảnh — ảnh sẽ được gắn vào chiếc đèn lồng và bay cùng lời chúc của bạn.</div>
+      </div>
       <div id="wishActions">
         <button class="wishBtn" id="wishCancel" type="button">Đóng</button>
         <button class="wishBtn primary" id="wishSend" type="button">Gửi</button>
       </div>
+    </div>
+  </div>
+
+  <div id="photoModal" aria-hidden="true">
+    <div id="photoModalBackdrop"></div>
+    <div id="photoModalCard" role="dialog" aria-modal="true" aria-label="Xem ảnh">
+      <button id="photoModalClose" type="button">Đóng</button>
+      <img id="photoModalImg" alt="Ảnh lời chúc" />
     </div>
   </div>
 </div>
@@ -1809,6 +1958,63 @@ function resolveWishesApiUrl() {
 
 const WISHES_API_URL = resolveWishesApiUrl();
 
+// Cloudinary (unsigned upload)
+// Only needs: cloudName + an *unsigned* upload preset.
+// Do NOT put api_secret in client-side code.
+const CLOUDINARY = {
+  // Cloud name comes from CLOUDINARY_URL: cloudinary://<api_key>:<api_secret>@<cloud_name>
+  cloudName: (window.CLOUDINARY_CLOUD_NAME || localStorage.getItem('cloudinary_cloudName') || 'diwxfpt92'),
+  uploadPreset: 'lananh',
+  // Public: safe to expose client-side. Must match the same Cloudinary account as cloudName/preset.
+  apiKey: (window.CLOUDINARY_API_KEY || localStorage.getItem('cloudinary_apiKey') || '744712781254988')
+};
+
+function getCloudinaryUploadEndpoint() {
+  const cn = String(CLOUDINARY.cloudName || '').trim();
+  if (!cn || cn === 'YOUR_CLOUD_NAME') return '';
+  return `https://api.cloudinary.com/v1_1/${encodeURIComponent(cn)}/image/upload`;
+}
+
+async function uploadWishImageToCloudinary(file) {
+  if (!file) return '';
+
+  let endpoint = getCloudinaryUploadEndpoint();
+  if (!endpoint) {
+    const entered = String(prompt('Nhập Cloudinary CLOUD NAME (không phải API key/secret) để upload ảnh:', '') || '').trim();
+    if (entered) {
+      CLOUDINARY.cloudName = entered;
+      try { localStorage.setItem('cloudinary_cloudName', entered); } catch {}
+      endpoint = getCloudinaryUploadEndpoint();
+    }
+  }
+  if (!endpoint) {
+    throw new Error('Thiếu Cloudinary cloud name nên không upload được ảnh.');
+  }
+
+  // Basic guardrails
+  const maxBytes = 6 * 1024 * 1024; // 6MB
+  if (file.size > maxBytes) throw new Error('Ảnh quá lớn (tối đa 6MB).');
+
+  const form = new FormData();
+  form.append('file', file);
+  form.append('upload_preset', CLOUDINARY.uploadPreset);
+  const apiKey = String(CLOUDINARY.apiKey || '').trim();
+  if (apiKey) form.append('api_key', apiKey);
+
+  const res = await fetch(endpoint, { method: 'POST', body: form });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    if (res.status === 401) {
+      throw new Error('Upload ảnh bị từ chối (401). Hãy kiểm tra Cloudinary cloudName đúng và preset "lananh" đang để Unsigned/Enabled.');
+    }
+    throw new Error(`Upload ảnh thất bại (${res.status}). ${t}`);
+  }
+  const data = await res.json();
+  const url = (data && (data.secure_url || data.url)) ? String(data.secure_url || data.url) : '';
+  if (!url) throw new Error('Upload ảnh thất bại (không nhận được URL).');
+  return url;
+}
+
 let wishesScheduled = false;
 let wishesPlaying = false;
 let finalTriggered = false;
@@ -1967,6 +2173,19 @@ function nextWish() {
   return w;
 }
 
+function peekNextWish() {
+  if (wishesPriority.length) return wishesPriority[0];
+  if (!wishesPool.length) {
+    return { name: 'Góc lời chúc', message: 'Bấm “Gửi lời chúc” để gửi điều bạn muốn nói tới Lan Anh nhé ✨' };
+  }
+
+  // Mirror cycle behavior, but do not mutate state.
+  if (wishesCursor >= wishesPool.length) {
+    return wishesPool[0];
+  }
+  return wishesPool[wishesCursor];
+}
+
 function setLanternContent(lantern, wish) {
   const safeName = (wish?.name || '').trim();
   const safeMsg = (wish?.message || '').trim();
@@ -2044,7 +2263,8 @@ async function fetchWishes(limit = 30) {
   return wishes
     .map(w => ({
       name: typeof w.name === 'string' ? w.name : '',
-      message: typeof w.message === 'string' ? w.message : ''
+      message: typeof w.message === 'string' ? w.message : '',
+      imageUrl: (typeof w.image_url === 'string' ? w.image_url : (typeof w.imageUrl === 'string' ? w.imageUrl : '')).trim()
     }))
     .filter(w => (w.name || w.message));
 }
@@ -2068,7 +2288,8 @@ async function fetchAllWishes() {
       seen.add(id);
       all.push({
         name: typeof w.name === 'string' ? w.name : '',
-        message: typeof w.message === 'string' ? w.message : ''
+        message: typeof w.message === 'string' ? w.message : '',
+        imageUrl: (typeof w.image_url === 'string' ? w.image_url : (typeof w.imageUrl === 'string' ? w.imageUrl : '')).trim()
       });
     }
 
@@ -2081,11 +2302,11 @@ async function fetchAllWishes() {
   return all.filter(w => (w.name || w.message));
 }
 
-async function postWish(name, message) {
+async function postWish(name, message, imageUrl) {
   const res = await fetch(WISHES_API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, message })
+    body: JSON.stringify({ name, message, imageUrl: imageUrl || '' })
   });
   if (!res.ok) throw new Error(`post wish failed: ${res.status}`);
   return await res.json();
@@ -2098,15 +2319,22 @@ function spawnLantern(wish, forcedSlot) {
   // Cap visible lanterns to reduce stacking
   if (layer.childElementCount >= maxLanternsOnScreen()) return false;
 
+  const safeName = (wish?.name || '').trim();
+  const safeMsg = (wish?.message || '').trim();
+  const imageUrl = String(wish?.imageUrl || wish?.image_url || '').trim();
+
   const nowMs = Date.now();
   const slot = (typeof forcedSlot === 'number') ? forcedSlot : pickSpawnSlot(nowMs);
   if (slot < 0) return false;
 
+  const wrap = document.createElement('div');
+  wrap.className = 'lanternWrap';
+  wrap.style.zIndex = imageUrl ? '40' : '20';
+  if (imageUrl) wrap.dataset.hasPhoto = '1';
+  wrap.dataset.slot = String(slot);
+
   const lantern = document.createElement('div');
   lantern.className = 'lantern';
-
-  const safeName = (wish?.name || '').trim();
-  const safeMsg = (wish?.message || '').trim();
 
   const inner = document.createElement('div');
   inner.className = 'lantern-inner';
@@ -2122,36 +2350,60 @@ function spawnLantern(wish, forcedSlot) {
   inner.appendChild(nameEl);
   inner.appendChild(msgEl);
   lantern.appendChild(inner);
+  wrap.appendChild(lantern);
+
+  if (imageUrl) {
+    const photoWrap = document.createElement('div');
+    photoWrap.className = 'lantern-photoWrap';
+
+    const rope = document.createElement('div');
+    rope.className = 'lantern-rope';
+
+    const img = document.createElement('img');
+    img.className = 'lantern-photo';
+    img.src = imageUrl;
+    img.alt = 'Ảnh lời chúc';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+
+    photoWrap.appendChild(rope);
+    photoWrap.appendChild(img);
+    wrap.appendChild(photoWrap);
+  }
 
   // Slot-based placement (fixed X) to guarantee no overlaps
   const rect = layer.getBoundingClientRect();
   const containerW = Math.max(320, rect.width || 0);
   const wpx = computeLanternWidthPx(containerW);
-  lantern.style.setProperty('--w', `${wpx}px`);
+  wrap.style.setProperty('--w', `${wpx}px`);
   const leftPx = lanternColumnLeftPx[slot] != null ? lanternColumnLeftPx[slot] : Math.max(12, (containerW - wpx) / 2);
-  lantern.style.left = `${Math.round(leftPx)}px`;
+  wrap.style.left = `${Math.round(leftPx)}px`;
 
   // Disable drift to keep slots disjoint for the full flight
-  lantern.style.setProperty('--x0', `0px`);
-  lantern.style.setProperty('--x1', `0px`);
+  wrap.style.setProperty('--x0', `0px`);
+  wrap.style.setProperty('--x1', `0px`);
 
   // Small start offset so they don't pop in on the exact same baseline
   const y0 = Math.random() * 70;
-  lantern.style.setProperty('--y0', `${y0}px`);
+  wrap.style.setProperty('--y0', `${y0}px`);
 
-  const dur = 52 + Math.random() * 26;
-  lantern.style.setProperty('--dur', `${dur}s`);
+  // Keep a consistent speed so lanterns never “catch up” and overlap.
+  const dur = 64;
+  wrap.style.setProperty('--dur', `${dur}s`);
   const sway = 3.4 + Math.random() * 2.8;
-  lantern.style.setProperty('--sway', `${sway}s`);
+  wrap.style.setProperty('--sway', `${sway}s`);
 
   // Prevent same-slot lanterns from being too close vertically.
-  lanternSlotNextOkMs[slot] = nowMs + slotMinGapMs() + Math.random() * 900;
+  // Photo bundles are much taller (lantern + rope + photo), so keep a much longer cooldown.
+  const baseGap = slotMinGapMs();
+  const photoGap = Math.max(baseGap, Math.floor(dur * 1000 + 1500));
+  lanternSlotNextOkMs[slot] = nowMs + (imageUrl ? photoGap : baseGap) + Math.random() * 900;
   lanternLastSpawnSlot = slot;
   lanternLastSpawnAtMs = nowMs;
 
-  layer.appendChild(lantern);
-  lantern.addEventListener('animationend', () => {
-    lantern.remove();
+  layer.appendChild(wrap);
+  wrap.addEventListener('animationend', () => {
+    wrap.remove();
   }, { once: true });
 
   return true;
@@ -2166,7 +2418,6 @@ function trySpawnNextLantern() {
   const slot = pickSpawnSlot(nowMs);
   if (slot < 0) return false;
 
-  // Only consume a wish if we're actually going to spawn.
   const wish = nextWish();
   return spawnLantern(wish, slot);
 }
@@ -2201,6 +2452,13 @@ function setWishModalOpen(open) {
   document.body.classList.toggle('wish-modal', open);
   const modal = document.getElementById('wishModal');
   if (modal) modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+
+  // Reset send button state each time modal is opened/closed.
+  const send = document.getElementById('wishSend');
+  if (send) {
+    send.disabled = false;
+    send.textContent = 'Gửi';
+  }
 }
 
 function wireWishUI() {
@@ -2210,12 +2468,61 @@ function wireWishUI() {
   const send = document.getElementById('wishSend');
   const nameInput = document.getElementById('wishName');
   const msgInput = document.getElementById('wishMessage');
+  const imgInput = document.getElementById('wishImage');
+  const imgPreview = document.getElementById('wishImagePreview');
 
   if (!wishFab || !backdrop || !cancel || !send || !nameInput || !msgInput) return;
 
-  wishFab.addEventListener('click', () => setWishModalOpen(true));
-  backdrop.addEventListener('click', () => setWishModalOpen(false));
-  cancel.addEventListener('click', () => setWishModalOpen(false));
+  const defaultSendText = 'Gửi';
+  const resetSendButton = () => {
+    send.disabled = false;
+    send.textContent = defaultSendText;
+  };
+
+  let previewUrl = '';
+  const clearPreview = () => {
+    if (previewUrl) {
+      try { URL.revokeObjectURL(previewUrl); } catch {}
+      previewUrl = '';
+    }
+    if (imgPreview) {
+      imgPreview.innerHTML = '';
+      imgPreview.style.display = 'none';
+    }
+  };
+
+  if (imgInput) {
+    imgInput.addEventListener('change', () => {
+      clearPreview();
+      const f = imgInput.files && imgInput.files[0];
+      if (!f) return;
+      if (!/^image\//i.test(f.type || '')) {
+        imgInput.value = '';
+        return;
+      }
+      previewUrl = URL.createObjectURL(f);
+      if (imgPreview) {
+        const im = document.createElement('img');
+        im.src = previewUrl;
+        im.alt = 'Preview';
+        imgPreview.appendChild(im);
+        imgPreview.style.display = 'block';
+      }
+    });
+  }
+
+  wishFab.addEventListener('click', () => {
+    resetSendButton();
+    setWishModalOpen(true);
+  });
+  backdrop.addEventListener('click', () => {
+    resetSendButton();
+    setWishModalOpen(false);
+  });
+  cancel.addEventListener('click', () => {
+    resetSendButton();
+    setWishModalOpen(false);
+  });
 
   send.addEventListener('click', async () => {
     const name = String(nameInput.value || '').trim().slice(0, 40);
@@ -2225,29 +2532,92 @@ function wireWishUI() {
       return;
     }
 
-    const oldText = send.textContent;
+    const file = imgInput && imgInput.files ? imgInput.files[0] : null;
+
+    const oldText = defaultSendText;
     send.disabled = true;
     send.textContent = 'Đang gửi...';
 
     try {
-      await postWish(name, message);
+      let imageUrl = '';
+      if (file) {
+        send.textContent = 'Đang upload ảnh...';
+        imageUrl = await uploadWishImageToCloudinary(file);
+        send.textContent = 'Đang gửi...';
+      }
+
+      await postWish(name, message, imageUrl);
       setWishModalOpen(false);
       msgInput.value = '';
-      const w = { name, message };
-      wishesPriority.push(w);
-      showWishNow(w);
+      if (imgInput) imgInput.value = '';
+      clearPreview();
+
+      // Ensure the next open doesn't keep the loading label.
+      resetSendButton();
+
+      const w = { name, message, imageUrl };
+      // Put it first so it appears ASAP in the stream.
+      wishesPriority.unshift(w);
+      if (document.body.classList.contains('wishes-on')) {
+        trySpawnNextLantern();
+      }
     } catch (e) {
       console.warn(e);
       send.textContent = 'Lỗi, thử lại';
       const t = setTimeout(() => { send.textContent = oldText; }, 1200);
       wishesTimeouts.push(t);
     } finally {
+      // If an error occurred, catch() may temporarily set a different label.
+      // Always re-enable; label is reset on success or when modal is reopened.
       send.disabled = false;
     }
   });
 }
 
 wireWishUI();
+
+function setPhotoModalOpen(open, url) {
+  document.body.classList.toggle('photo-modal', open);
+  const modal = document.getElementById('photoModal');
+  const img = document.getElementById('photoModalImg');
+  if (modal) modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+  if (img) {
+    if (open && url) {
+      img.src = url;
+    } else {
+      img.removeAttribute('src');
+    }
+  }
+}
+
+function wirePhotoModal() {
+  const layer = document.getElementById('lanternLayer');
+  const backdrop = document.getElementById('photoModalBackdrop');
+  const closeBtn = document.getElementById('photoModalClose');
+
+  if (layer) {
+    layer.addEventListener('click', (e) => {
+      const target = e && e.target;
+      const img = target && target.closest ? target.closest('img.lantern-photo') : null;
+      if (!img) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const src = String(img.getAttribute('src') || '').trim();
+      if (!src) return;
+      setPhotoModalOpen(true, src);
+    });
+  }
+
+  if (backdrop) backdrop.addEventListener('click', () => setPhotoModalOpen(false));
+  if (closeBtn) closeBtn.addEventListener('click', () => setPhotoModalOpen(false));
+
+  window.addEventListener('keydown', (e) => {
+    if (!document.body.classList.contains('photo-modal')) return;
+    if (e.key === 'Escape') setPhotoModalOpen(false);
+  });
+}
+
+wirePhotoModal();
 
 async function startWishesSequence() {
   if (wishesPlaying || finalTriggered) return;
@@ -2286,7 +2656,9 @@ window.addEventListener('cake:done', () => {
   const t = window.setTimeout(() => {
     if (!document.body.classList.contains('experience-on')) return;
     if (document.body.classList.contains('final-on')) return;
-    startWishesSequence().catch(() => triggerFinalOverlay());
+    startWishesSequence().catch((e) => {
+      console.warn('startWishesSequence failed', e);
+    });
   }, WISHES_DELAY_AFTER_CAKE_MS);
   wishesTimeouts.push(t);
 });
