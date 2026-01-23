@@ -2719,11 +2719,13 @@ function wireLanternLikes() {
   let lastTapAt = 0;
 
   layer.addEventListener('pointerup', async (e) => {
-    // Only like when tapping the text panel, not the hanging photo.
-    const inner = e.target && e.target.closest ? e.target.closest('.lantern-inner') : null;
-    if (!inner) return;
+    // Like anywhere on the lantern body; ignore hanging photo clicks (photo modal uses those).
+    if (e.target && e.target.closest && e.target.closest('.lantern-photoWrap')) return;
 
-    const wrap = inner.closest('.lanternWrap');
+    const lantern = e.target && e.target.closest ? e.target.closest('.lantern') : null;
+    if (!lantern) return;
+
+    const wrap = lantern.closest('.lanternWrap');
     const id = wrap && wrap.dataset ? String(wrap.dataset.wishId || '') : '';
     if (!id) return;
 
